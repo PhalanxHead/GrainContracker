@@ -28,8 +28,8 @@ Client tests are available under `http://localhost:8081` in your browser and ser
 
 **Prerequisites**
 
-- You must have Azure Functions Core Tools (v3) installed and set up.
-- You should use the Azurite Azure Storage emulator. Personally, I am using the Azurite docker container and it seems to work without complaint (so far)
+- You must have [Azure Functions Core Tools (v3)](https://github.com/Azure/azure-functions-core-tools) installed and set up.
+- You should use the [Azurite Azure Storage emulator](https://github.com/Azure/Azurite). Personally, I am using the Azurite docker container and it seems to work without complaint (so far)
 
 **Method**
 

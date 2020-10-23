@@ -200,7 +200,7 @@ module PdfParser =
         for row in priceRows do
             priceList2 <-
                 priceList2
-                @ (extractSitePricesFromSiteRow row pdfSeasons)
+                @ (extractSitePricesFromSiteRow row pdfSeasons pdfDate)
 
         let priceList: SitePrice list =
             [ { PriceSheetDate = DateTimeOffset.Now

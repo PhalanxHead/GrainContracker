@@ -8,11 +8,14 @@ open Microsoft.Azure.WebJobs.Extensions.Http
 open Microsoft.AspNetCore.Http
 open Newtonsoft.Json
 open Microsoft.Extensions.Logging
+// open FSharp.CosmosDb
+// open FSharp.Control
 
 
 
 module HttpTrigger =
     open GrainContracker.Common
+    // open Shared.Domain
 
     // Define a nullable container to deserialize into.
     [<AllowNullLiteral>]
@@ -54,6 +57,27 @@ module HttpTrigger =
             // else
             // "Hello, " +  name + ". This HTTP triggered function executed successfully."
 
+
+            let connString =
+                System.Environment.GetEnvironmentVariable("ConnectionStrings:" + "CosmosDbConnectionString")
+
+            printfn "%s" connString
+
+            (*
+            let insertPriceSheet =
+                connString
+                |> Cosmos.fromConnectionString
+                |> Cosmos.database "Contracker_primary"
+                |> Cosmos.container "PriceSheets"
+                |> Cosmos.insert<PriceSheet> responseMessage
+                |> Cosmos.execAsync
+
+            let users = insertPriceSheet
+
+
+            do! users
+                |> AsyncSeq.iter (fun u -> printfn "%A %A" u.SheetDate u.Pool)
+            *)
             return OkObjectResult(responseMessage) :> IActionResult
         }
         |> Async.StartAsTask
