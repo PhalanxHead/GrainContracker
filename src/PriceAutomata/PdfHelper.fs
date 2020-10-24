@@ -145,7 +145,8 @@ module PdfParser =
         |> Array.map (fun price_season ->
             let priceDec = Decimal.Parse(fst price_season)
             let priceAsCurrency = AUD(aud.lift priceDec)
-            { PriceSheetDate = sheetDate
+            { id = new Guid()
+              PriceSheetDate = sheetDate
               Season = (snd price_season)
               Grade = Grade "BAR1"
               Grain = Barley
@@ -203,7 +204,8 @@ module PdfParser =
                 @ (extractSitePricesFromSiteRow row pdfSeasons pdfDate)
 
         let priceList: SitePrice list =
-            [ { PriceSheetDate = DateTimeOffset.Now
+            [ { id = new Guid()
+                PriceSheetDate = DateTimeOffset.Now
                 Season = pdfSeasons.[0]
                 Grade = Grade "BAR1"
                 Grain = Barley
@@ -211,7 +213,8 @@ module PdfParser =
                 Price = AUD 200.00m<aud> } ]
 
         let thisPriceSheet =
-            { SheetDate = pdfDate
+            { id = new Guid()
+              SheetDate = pdfDate
               Pool = VIC
               SaleType = Contract
               Buyer = GrainCorp

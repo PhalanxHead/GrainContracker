@@ -8,14 +8,14 @@ open Microsoft.Azure.WebJobs.Extensions.Http
 open Microsoft.AspNetCore.Http
 open Newtonsoft.Json
 open Microsoft.Extensions.Logging
-// open FSharp.CosmosDb
-// open FSharp.Control
+open FSharp.CosmosDb
+open FSharp.Control
 
 
 
 module HttpTrigger =
     open GrainContracker.Common
-    // open Shared.Domain
+    open Shared.Domain
 
     // Define a nullable container to deserialize into.
     [<AllowNullLiteral>]
@@ -63,7 +63,6 @@ module HttpTrigger =
 
             printfn "%s" connString
 
-            (*
             let insertPriceSheet =
                 connString
                 |> Cosmos.fromConnectionString
@@ -74,10 +73,9 @@ module HttpTrigger =
 
             let users = insertPriceSheet
 
-
             do! users
                 |> AsyncSeq.iter (fun u -> printfn "%A %A" u.SheetDate u.Pool)
-            *)
+
             return OkObjectResult(responseMessage) :> IActionResult
         }
         |> Async.StartAsTask
