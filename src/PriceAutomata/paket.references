@@ -1,3 +1,6 @@
 PdfPig
 FSharp.CosmosDb
 Azure.Cosmos
+FSharp.SystemTextJson
+Microsoft.FSharpLu
+Microsoft.FSharpLu.Json

@@ -2,6 +2,8 @@ namespace Shared
 
 open FSharp.Data.UnitSystems.SI.UnitSymbols
 open System
+open System.Text.Json
+open System.Text.Json.Serialization
 
 module Units =
     [<Measure>]
@@ -15,8 +17,10 @@ module Units =
     type aud =
         static member lift(v: decimal) = v * 1.0m<aud>
 
+    // Currency, US Dollar
     [<Measure>]
-    type usd // Currency, US Dollar
+    type usd =
+        static member lift(v: decimal) = v * 1.0m<usd>
 
 module Domain =
     open Units
@@ -61,16 +65,22 @@ module Domain =
     type Grade = Grade of string
     type Site = Site of string
 
+    [<CLIMutable>]
     type SitePrice =
-        { PriceSheetDate: DateTimeOffset
+        { [<JsonPropertyName("id")>]
+          id: Guid
+          PriceSheetDate: DateTimeOffset
           Season: Season
           Grade: Grade
           Grain: GrainType
           Site: Site
           Price: Currency }
 
+    [<CLIMutable>]
     type PriceSheet =
-        { SheetDate: DateTimeOffset
+        { [<JsonPropertyName("id")>]
+          id: Guid
+          SheetDate: DateTimeOffset
           Pool: SalesPool
           Buyer: Buyers
           SaleType: PriceType

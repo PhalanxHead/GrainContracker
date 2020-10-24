@@ -8,9 +8,67 @@ open Microsoft.Azure.WebJobs.Extensions.Http
 open Microsoft.AspNetCore.Http
 open Newtonsoft.Json
 open Microsoft.Extensions.Logging
-// open FSharp.CosmosDb
-// open FSharp.Control
+open FSharp.CosmosDb
+open FSharp.Control
+open System.Text.Json
+open System.Text.Json.Serialization
+open Azure.Cosmos.Serialization
+open System.Text
+open Microsoft.FSharpLu.Json
+open Shared.Domain
 
+
+module Serializer =
+
+    let JsonFSharpCon =
+        JsonFSharpConverter
+            (unionEncoding =
+                (JsonUnionEncoding.ExternalTag
+                 ||| JsonUnionEncoding.UnwrapFieldlessTags))
+
+    let options = JsonSerializerOptions()
+
+    JsonFSharpCon |> options.Converters.Add
+
+    type CompactCosmosSerializer() =
+        inherit CosmosSerializer()
+
+        let defaultEncoding = new UTF8Encoding(false, true)
+        let jsonSerializerSettings = new JsonSerializerSettings()
+        do jsonSerializerSettings.Converters <- [| CompactUnionJsonConverter(true) |]
+
+        let serializer =
+            JsonSerializer.Create(jsonSerializerSettings)
+
+        override u.FromStream<'T>(stream: Stream): 'T =
+            let returnCastedStream () = (box stream) :?> 'T
+
+            let readStreamAndConvert () =
+                use streamReader = new StreamReader(stream)
+                use jsonTextReader = new JsonTextReader(streamReader)
+                serializer.Deserialize<'T>(jsonTextReader)
+
+            try
+                if typeof<Stream>.IsAssignableFrom(typeof<'T>)
+                then returnCastedStream ()
+                else readStreamAndConvert ()
+            finally
+                stream.Dispose()
+
+        override u.ToStream<'T>(input: 'T): Stream =
+            let streamPayload = new MemoryStream()
+
+            use streamWriter =
+                new StreamWriter(streamPayload, encoding = defaultEncoding, bufferSize = 1024, leaveOpen = true)
+
+            use writer = new JsonTextWriter(streamWriter)
+            writer.Formatting <- Newtonsoft.Json.Formatting.None
+            serializer.Serialize(writer, input)
+            writer.Flush()
+            streamWriter.Flush()
+
+            streamPayload.Position <- 0L
+            streamPayload :> Stream
 
 
 module HttpTrigger =
@@ -63,21 +121,21 @@ module HttpTrigger =
 
             printfn "%s" connString
 
-            (*
+            let op: Azure.Cosmos.CosmosClientOptions = Azure.Cosmos.CosmosClientOptions()
+
+            op.Serializer <- Serializer.CompactCosmosSerializer()
+
             let insertPriceSheet =
-                connString
-                |> Cosmos.fromConnectionString
+                Cosmos.fromConnectionStringWithOptions connString op
                 |> Cosmos.database "Contracker_primary"
-                |> Cosmos.container "PriceSheets"
-                |> Cosmos.insert<PriceSheet> responseMessage
+                |> Cosmos.container "Prices"
+                |> Cosmos.insertMany<SitePrice> responseMessage.Prices
                 |> Cosmos.execAsync
 
             let users = insertPriceSheet
 
+            do! users |> AsyncSeq.iter (fun u -> printfn "%A" u)
 
-            do! users
-                |> AsyncSeq.iter (fun u -> printfn "%A %A" u.SheetDate u.Pool)
-            *)
             return OkObjectResult(responseMessage) :> IActionResult
         }
         |> Async.StartAsTask
