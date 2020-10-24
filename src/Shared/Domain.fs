@@ -15,8 +15,10 @@ module Units =
     type aud =
         static member lift(v: decimal) = v * 1.0m<aud>
 
+    // Currency, US Dollar
     [<Measure>]
-    type usd // Currency, US Dollar
+    type usd =
+        static member lift(v: decimal) = v * 1.0m<usd>
 
 module Domain =
     open Units
@@ -61,17 +63,21 @@ module Domain =
     type Grade = Grade of string
     type Site = Site of string
 
+    [<CLIMutable>]
     type SitePrice =
-        { PriceSheetDate: DateTimeOffset
+        { id: Guid
+          SheetId: Guid option
+          PriceSheetDate: DateTimeOffset
           Season: Season
           Grade: Grade
           Grain: GrainType
           Site: Site
           Price: Currency }
 
+    [<CLIMutable>]
     type PriceSheet =
-        { SheetDate: DateTimeOffset
+        { id: Guid
+          SheetDate: DateTimeOffset
           Pool: SalesPool
           Buyer: Buyers
-          SaleType: PriceType
-          Prices: SitePrice list }
+          SaleType: PriceType }

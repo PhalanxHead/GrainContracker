@@ -5,6 +5,9 @@ storage: none
 nuget Azure.Cosmos
 nuget Fable.Remoting.Giraffe
 nuget FSharp.CosmosDb
+nuget FSharp.SystemTextJson
+nuget Microsoft.FSharpLu
+nuget Microsoft.FSharpLu.Json
 nuget PdfPig
 nuget PdfSharp
 nuget Saturn
