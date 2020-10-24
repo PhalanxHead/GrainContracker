@@ -2,8 +2,6 @@ namespace Shared
 
 open FSharp.Data.UnitSystems.SI.UnitSymbols
 open System
-open System.Text.Json
-open System.Text.Json.Serialization
 
 module Units =
     [<Measure>]
@@ -67,8 +65,8 @@ module Domain =
 
     [<CLIMutable>]
     type SitePrice =
-        { [<JsonPropertyName("id")>]
-          id: Guid
+        { id: Guid
+          SheetId: Guid option
           PriceSheetDate: DateTimeOffset
           Season: Season
           Grade: Grade
@@ -78,10 +76,8 @@ module Domain =
 
     [<CLIMutable>]
     type PriceSheet =
-        { [<JsonPropertyName("id")>]
-          id: Guid
+        { id: Guid
           SheetDate: DateTimeOffset
           Pool: SalesPool
           Buyer: Buyers
-          SaleType: PriceType
-          Prices: SitePrice list }
+          SaleType: PriceType }

@@ -125,7 +125,7 @@ module PdfParser =
     /// <param name="siteRow">The site row to extract from</param>
     /// <param name="seasons">The list of seasons present on this site sheet</param>
     /// <returns>List of Site Prices for the primary grain grade</returns>
-    let extractSitePricesFromSiteRow (siteRow: SiteRow) (seasons: Season []) sheetDate =
+    let extractSitePricesFromSiteRow (siteRow: SiteRow) (seasons: Season []) sheetDate sheetId =
         let relevantPriceCount =
             min siteRow.SitePrices.Length seasons.Length
 
@@ -146,6 +146,7 @@ module PdfParser =
             let priceDec = Decimal.Parse(fst price_season)
             let priceAsCurrency = AUD(aud.lift priceDec)
             { id = Guid.NewGuid()
+              SheetId = Some sheetId
               PriceSheetDate = sheetDate
               Season = (snd price_season)
               Grade = Grade "BAR1"
@@ -196,33 +197,21 @@ module PdfParser =
         let priceRows =
             extractNextSiteRow [||] 37 pdfArrAfterGradeHeaders
 
-        let mutable priceList2 = []
-
-        for row in priceRows do
-            priceList2 <-
-                priceList2
-                @ (extractSitePricesFromSiteRow row pdfSeasons pdfDate)
-
-        let priceList: SitePrice list =
-            [ { id = Guid.NewGuid()
-                PriceSheetDate = DateTimeOffset.Now
-                Season = pdfSeasons.[0]
-                Grade = Grade "BAR1"
-                Grain = Barley
-                Site = Site "Murtoa Sub"
-                Price = AUD 200.00m<aud> } ]
-
         let thisPriceSheet =
             { id = Guid.NewGuid()
               SheetDate = pdfDate
               Pool = VIC
               SaleType = Contract
-              Buyer = GrainCorp
-              Prices = priceList2 }
+              Buyer = GrainCorp }
 
-        printfn "%A" thisPriceSheet
+        let mutable priceList = []
 
-        thisPriceSheet
+        for row in priceRows do
+            priceList <-
+                priceList
+                @ (extractSitePricesFromSiteRow row pdfSeasons pdfDate thisPriceSheet.id)
+
+        thisPriceSheet, priceList
 
 
 (*

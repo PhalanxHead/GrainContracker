@@ -1,34 +1,19 @@
 namespace Company.Function
 
-open System
-open System.IO
+open Azure.Cosmos.Serialization
+open FSharp.CosmosDb
+open FSharp.Control
 open Microsoft.AspNetCore.Mvc
 open Microsoft.Azure.WebJobs
 open Microsoft.Azure.WebJobs.Extensions.Http
 open Microsoft.AspNetCore.Http
-open Newtonsoft.Json
 open Microsoft.Extensions.Logging
-open FSharp.CosmosDb
-open FSharp.Control
-open System.Text.Json
-open System.Text.Json.Serialization
-open Azure.Cosmos.Serialization
-open System.Text
 open Microsoft.FSharpLu.Json
-open Shared.Domain
-
+open Newtonsoft.Json
+open System.Text
+open System.IO
 
 module Serializer =
-
-    let JsonFSharpCon =
-        JsonFSharpConverter
-            (unionEncoding =
-                (JsonUnionEncoding.ExternalTag
-                 ||| JsonUnionEncoding.UnwrapFieldlessTags))
-
-    let options = JsonSerializerOptions()
-
-    JsonFSharpCon |> options.Converters.Add
 
     type CompactCosmosSerializer() =
         inherit CosmosSerializer()
@@ -73,12 +58,7 @@ module Serializer =
 
 module HttpTrigger =
     open GrainContracker.Common
-    // open Shared.Domain
-
-    // Define a nullable container to deserialize into.
-    [<AllowNullLiteral>]
-    type NameContainer() =
-        member val Name = "" with get, set
+    open Shared.Domain
 
     // For convenience, it's better to have a central place for the literal.
     [<Literal>]
@@ -88,54 +68,41 @@ module HttpTrigger =
     let run ([<HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)>] req: HttpRequest) (log: ILogger) =
         async {
             log.LogInformation("F# HTTP trigger function processed a request.")
-
-            let nameOpt =
-                if req.Query.ContainsKey(Name) then Some(req.Query.[Name].[0]) else None
-
-            use stream = new StreamReader(req.Body)
-            let! reqBody = stream.ReadToEndAsync() |> Async.AwaitTask
-
-            let data =
-                JsonConvert.DeserializeObject<NameContainer>(reqBody)
-
-            let name =
-                match nameOpt with
-                | Some n -> n
-                | None ->
-                    match data with
-                    | null -> ""
-                    | nc -> nc.Name
-
             let pdfString = PdfHelper.readSamplePdfPig
 
-            let responseMessage =
+            let priceSheet, prices =
                 PdfParser.GrainCorpBarleyParser pdfString
-            // if (String.IsNullOrWhiteSpace(name)) then
-            // "This HTTP triggered function executed successfully. Pass a name in the query string or in the request body for a personalized response."
-            // else
-            // "Hello, " +  name + ". This HTTP triggered function executed successfully."
 
-
-            let connString =
+            let cosmosConnString =
                 System.Environment.GetEnvironmentVariable("ConnectionStrings:" + "CosmosDbConnectionString")
-
-            printfn "%s" connString
 
             let op: Azure.Cosmos.CosmosClientOptions = Azure.Cosmos.CosmosClientOptions()
 
             op.Serializer <- Serializer.CompactCosmosSerializer()
 
-            let insertPriceSheet =
-                Cosmos.fromConnectionStringWithOptions connString op
+            let cosmosConnection =
+                Cosmos.fromConnectionStringWithOptions cosmosConnString op
                 |> Cosmos.database "Contracker_primary"
                 |> Cosmos.container "Prices"
-                |> Cosmos.insertMany<SitePrice> responseMessage.Prices
+
+            let insertPriceSheet =
+                cosmosConnection
+                |> Cosmos.insert<PriceSheet> priceSheet
                 |> Cosmos.execAsync
 
-            let users = insertPriceSheet
+            let priceSheet = insertPriceSheet
+            do! priceSheet
+                |> AsyncSeq.iter (fun u -> printfn "%A" u)
 
-            do! users |> AsyncSeq.iter (fun u -> printfn "%A" u)
+            let insertSitePrices =
+                cosmosConnection
+                |> Cosmos.insertMany<SitePrice> prices
+                |> Cosmos.execAsync
 
-            return OkObjectResult(responseMessage) :> IActionResult
+            let sitePrices = insertSitePrices
+            do! sitePrices
+                |> AsyncSeq.iter (fun u -> printfn "%A" u)
+
+            return OkObjectResult(priceSheet, prices) :> IActionResult
         }
         |> Async.StartAsTask
