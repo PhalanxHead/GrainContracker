@@ -3,7 +3,11 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <None Include="paket.references" />
+    <Compile Include="Serializers.fs" />
     <Compile Include="Domain.fs" />
     <Compile Include="Shared.fs" />
   </ItemGroup>
+  <ItemGroup />
+  <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>

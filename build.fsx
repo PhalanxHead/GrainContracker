@@ -49,16 +49,16 @@ Target.create "Bundle" (fun _ ->
 
 Target.create "Azure" (fun _ ->
     let web = webApp {
-        name "GrainTracker"
+        name "GrainContracker"
         zip_deploy "deploy"
     }
     let deployment = arm {
-        location Location.WestEurope
+        location Location.AustraliaSoutheast
         add_resource web
     }
 
     deployment
-    |> Deploy.execute "GrainTracker" Deploy.NoParameters
+    |> Deploy.execute "GrainContracker" Deploy.NoParameters
     |> ignore
 )
 

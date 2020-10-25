@@ -40,6 +40,13 @@ module PdfParser =
         { SiteName: string
           SitePrices: string [] }
 
+    type SheetData =
+        { PdfDate: DateTimeOffset
+          PdfPool: SalesPool
+          SaleType: PriceType
+          Grain: GrainType
+          Buyer: Buyers }
+
     /// <summary>
     /// Works out the date from the beginning of the PDF String,
     /// </summary>
@@ -124,8 +131,9 @@ module PdfParser =
     /// </summary>
     /// <param name="siteRow">The site row to extract from</param>
     /// <param name="seasons">The list of seasons present on this site sheet</param>
+    /// <param name="staticSheetData">The obejct containing all the ambiant sheet data like date and pool</param>
     /// <returns>List of Site Prices for the primary grain grade</returns>
-    let extractSitePricesFromSiteRow (siteRow: SiteRow) (seasons: Season []) sheetDate sheetId =
+    let extractSitePricesFromSiteRow (siteRow: SiteRow) (seasons: Season []) (staticSheetData: SheetData) =
         let relevantPriceCount =
             min siteRow.SitePrices.Length seasons.Length
 
@@ -141,19 +149,27 @@ module PdfParser =
                    siteRow.SitePrices.[1]
                    (Array.last siteRow.SitePrices) |]
 
+        let mutable prices = []
+
         Array.zip relevantPrices seasons
         |> Array.map (fun price_season ->
             let priceDec = Decimal.Parse(fst price_season)
             let priceAsCurrency = AUD(aud.lift priceDec)
-            { id = Guid.NewGuid()
-              SheetId = Some sheetId
-              PriceSheetDate = sheetDate
-              Season = (snd price_season)
-              Grade = Grade "BAR1"
-              Grain = Barley
-              Site = Site siteRow.SiteName
-              Price = priceAsCurrency })
-        |> Array.toList
+            prices <-
+                prices
+                @ [ { Season = snd price_season
+                      Price = priceAsCurrency } ])
+        |> ignore
+
+        { id = Guid.NewGuid()
+          Pool = staticSheetData.PdfPool
+          Buyer = staticSheetData.Buyer
+          SaleType = staticSheetData.SaleType
+          PriceSheetDate = staticSheetData.PdfDate
+          Grade = GrainType.DefaultGrade staticSheetData.Grain
+          Grain = staticSheetData.Grain
+          Site = Site siteRow.SiteName
+          Price = prices }
 
     /// <summary>
     /// Recursively extracts the next site row from the PDF String array into an accumulator until the remaining depth = 0
@@ -197,11 +213,11 @@ module PdfParser =
         let priceRows =
             extractNextSiteRow [||] 37 pdfArrAfterGradeHeaders
 
-        let thisPriceSheet =
-            { id = Guid.NewGuid()
-              SheetDate = pdfDate
-              Pool = VIC
+        let staticSheetData =
+            { PdfDate = pdfDate
+              PdfPool = VIC
               SaleType = Contract
+              Grain = Barley
               Buyer = GrainCorp }
 
         let mutable priceList = []
@@ -209,9 +225,9 @@ module PdfParser =
         for row in priceRows do
             priceList <-
                 priceList
-                @ (extractSitePricesFromSiteRow row pdfSeasons pdfDate thisPriceSheet.id)
+                @ [ (extractSitePricesFromSiteRow row pdfSeasons staticSheetData) ]
 
-        thisPriceSheet, priceList
+        priceList
 
 
 (*

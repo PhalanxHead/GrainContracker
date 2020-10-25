@@ -23,6 +23,10 @@ module Units =
 module Domain =
     open Units
 
+    type Season = Season of string
+    type Grade = Grade of string
+    type Site = Site of string
+
     type PriceMeasure =
         | MetricTonnes
         | Bushels
@@ -51,6 +55,17 @@ module Domain =
         | Sorghum
         | Beans
         | Lupins
+        static member DefaultGrade grain =
+            match grain with
+            | Wheat -> Grade "APW1"
+            | Barley -> Grade "BAR1"
+            | Canola -> Grade "CAN ISCC"
+            | Oats -> failwith "Not Implemented"
+            | Lentils -> failwith "Not Implemented"
+            | Chickpeas -> Grade "CHKP"
+            | Sorghum -> Grade "SOR"
+            | Beans -> failwith "Not Implemented"
+            | Lupins -> failwith "Not Implemented"
 
     type SalesPool =
         | QLD
@@ -59,25 +74,16 @@ module Domain =
         | NSW
         | SA
 
-    type Season = Season of string
-    type Grade = Grade of string
-    type Site = Site of string
+    type SeasonPrice = { Season: Season; Price: Currency }
 
     [<CLIMutable>]
-    type SitePrice =
+    type DayPrice =
         { id: Guid
-          SheetId: Guid option
           PriceSheetDate: DateTimeOffset
-          Season: Season
+          Pool: SalesPool
+          Buyer: Buyers
           Grade: Grade
           Grain: GrainType
           Site: Site
-          Price: Currency }
-
-    [<CLIMutable>]
-    type PriceSheet =
-        { id: Guid
-          SheetDate: DateTimeOffset
-          Pool: SalesPool
-          Buyer: Buyers
-          SaleType: PriceType }
+          SaleType: PriceType
+          Price: SeasonPrice list }
