@@ -3,3 +3,4 @@ Fable.Remoting.Giraffe
 FSharp.CosmosDb
 Azure.Cosmos
 FSharp.SystemTextJson
+Logary

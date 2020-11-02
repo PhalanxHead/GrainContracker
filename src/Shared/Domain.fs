@@ -25,7 +25,10 @@ module Domain =
 
     type Season = Season of string
     type Grade = Grade of string
-    type Site = Site of string
+
+    type Site =
+        | Site of string
+        static member ExtractSiteName(Site site) = site
 
     type PriceMeasure =
         | MetricTonnes
@@ -78,7 +81,7 @@ module Domain =
 
     [<CLIMutable>]
     type DayPrice =
-        { id: Guid
+        { id: string
           PriceSheetDate: DateTimeOffset
           Pool: SalesPool
           Buyer: Buyers
@@ -87,3 +90,9 @@ module Domain =
           Site: Site
           SaleType: PriceType
           Price: SeasonPrice list }
+        static member GenerateId(price: DayPrice) =
+            price.PriceSheetDate.ToString("yy-MM-dd")
+            + (Site.ExtractSiteName price.Site).Replace(" ", String.Empty)
+            + price.Grain.ToString()
+            + price.Buyer.ToString()
+            + price.Pool.ToString()

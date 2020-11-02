@@ -1,8 +1,10 @@
 namespace GrainContracker.Common
 
 open System
-open System.Text
 open Shared.Domain
+open Shared.Configuration
+open Logary
+open Logary.Message
 
 module String =
     let contains x = String.exists ((=) x)
@@ -15,6 +17,9 @@ module Array =
 module PdfHelper =
     open UglyToad.PdfPig
 
+    let pdfHelperLogger =
+        Logging.getLogger "GrainContracker.PriceAutomata" "PriceAutomata.PdfHelper"
+
     let readPdfToStringPdfPig (pdfPath: string) =
         let mutable pdfString = ""
         use doc = PdfDocument.Open(pdfPath)
@@ -22,10 +27,15 @@ module PdfHelper =
             for word in page.GetWords() do
                 pdfString <- pdfString + " " + word.Text
 
+        pdfHelperLogger.info
+            (eventX "Read {chars} characters from Pdf {pdfPath}"
+             >> setField "chars" pdfString.Length
+             >> setField "pdfPath" pdfPath)
+
         pdfString
 
     let readSamplePdfPig =
-        readPdfToStringPdfPig @"../../../../../../VIC-Barley_Oct13.pdf"
+        readPdfToStringPdfPig @"../../../../../../VIC-Barley_Oct16.pdf"
 
 module PdfParser =
     open Shared.Units
@@ -46,6 +56,9 @@ module PdfParser =
           SaleType: PriceType
           Grain: GrainType
           Buyer: Buyers }
+
+    let pdfParserLogger =
+        Logging.getLogger "GrainContracker.PriceAutomata" "PriceAutomata.PdfParser"
 
     /// <summary>
     /// Works out the date from the beginning of the PDF String,
@@ -133,13 +146,18 @@ module PdfParser =
     /// <param name="seasons">The list of seasons present on this site sheet</param>
     /// <param name="staticSheetData">The obejct containing all the ambiant sheet data like date and pool</param>
     /// <returns>List of Site Prices for the primary grain grade</returns>
-    let extractSitePricesFromSiteRow (siteRow: SiteRow) (seasons: Season []) (staticSheetData: SheetData) =
+    let extractBarleySitePricesFromSiteRow (siteRow: SiteRow) (seasons: Season []) (staticSheetData: SheetData) =
         let relevantPriceCount =
             min siteRow.SitePrices.Length seasons.Length
 
         let relevantPrices =
             match relevantPriceCount with
-            | 0 -> nullArg "There's no prices in this row!"
+            | 0 ->
+                pdfParserLogger.error
+                    (eventX "Row {rowSite} has no prices!"
+                     >> setField "rowSite" siteRow.SiteName
+                     >> setField "sheetData" staticSheetData)
+                nullArg "There's no prices in this row!"
             | 1 -> [| siteRow.SitePrices.[0] |]
             | 2 ->
                 [| siteRow.SitePrices.[0]
@@ -161,15 +179,27 @@ module PdfParser =
                       Price = priceAsCurrency } ])
         |> ignore
 
-        { id = Guid.NewGuid()
-          Pool = staticSheetData.PdfPool
-          Buyer = staticSheetData.Buyer
-          SaleType = staticSheetData.SaleType
-          PriceSheetDate = staticSheetData.PdfDate
-          Grade = GrainType.DefaultGrade staticSheetData.Grain
-          Grain = staticSheetData.Grain
-          Site = Site siteRow.SiteName
-          Price = prices }
+        pdfParserLogger.debug
+            (eventX "Read {seasonCount} seasons for Site {siteName} from Price Sheet {grain}:{sheetDate}"
+             >> setField "seasonCount" relevantPriceCount
+             >> setField "siteName" siteRow.SiteName
+             >> setField "grain" staticSheetData.Grain
+             >> setField "sheetDate" staticSheetData.PdfDate
+             >> setField "sheetData" staticSheetData)
+
+        let nonIdPrice =
+            { id = ""
+              Pool = staticSheetData.PdfPool
+              Buyer = staticSheetData.Buyer
+              SaleType = staticSheetData.SaleType
+              PriceSheetDate = staticSheetData.PdfDate
+              Grade = GrainType.DefaultGrade staticSheetData.Grain
+              Grain = staticSheetData.Grain
+              Site = Site siteRow.SiteName
+              Price = prices }
+
+        { nonIdPrice with
+              id = DayPrice.GenerateId nonIdPrice }
 
     /// <summary>
     /// Recursively extracts the next site row from the PDF String array into an accumulator until the remaining depth = 0
@@ -197,13 +227,12 @@ module PdfParser =
 
         let pdfDate, pdfArrAfterDate = extractDateFromGCBarley pdfArr
 
-        printfn "%A" pdfDate
+        pdfParserLogger.info
+            (eventX "Parsing Barley Prices for sheet on {pdfDate}"
+             >> setField "pdfDate" pdfDate)
 
         let pdfSeasons, pdfArrAfterSeasons =
             extractSeasonsFromGCBarley pdfArrAfterDate
-
-        printfn "%A" pdfSeasons
-        printfn "%A" pdfArrAfterSeasons
 
         let pdfArrAfterGradeHeaders =
             (pdfArrAfterSeasons
@@ -225,7 +254,13 @@ module PdfParser =
         for row in priceRows do
             priceList <-
                 priceList
-                @ [ (extractSitePricesFromSiteRow row pdfSeasons staticSheetData) ]
+                @ [ (extractBarleySitePricesFromSiteRow row pdfSeasons staticSheetData) ]
+
+        pdfParserLogger.info
+            (eventX "Read Barley Prices for {siteCount} sites from sheet {pdfDate}"
+             >> setField "pdfDate" pdfDate
+             >> setField "siteCount" priceList.Length
+             >> setField "sheetData" staticSheetData)
 
         priceList
 
