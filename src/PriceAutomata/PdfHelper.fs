@@ -20,7 +20,7 @@ module PdfHelper =
     let pdfHelperLogger =
         Logging.getLogger "GrainContracker.PriceAutomata" "PriceAutomata.PdfHelper"
 
-    let readPdfToStringPdfPig (pdfPath: string) =
+    let readPdfToStringPdfPig (pdfPath: IO.Stream) =
         let mutable pdfString = ""
         use doc = PdfDocument.Open(pdfPath)
         for page in doc.GetPages() do
@@ -34,8 +34,10 @@ module PdfHelper =
 
         pdfString
 
+(*
     let readSamplePdfPig =
         readPdfToStringPdfPig @"../../../../../../VIC-Barley_Oct16.pdf"
+    *)
 
 module PdfParser =
     open Shared.Units
@@ -179,13 +181,13 @@ module PdfParser =
                       Price = priceAsCurrency } ])
         |> ignore
 
-        pdfParserLogger.debug
-            (eventX "Read {seasonCount} seasons for Site {siteName} from Price Sheet {grain}:{sheetDate}"
-             >> setField "seasonCount" relevantPriceCount
-             >> setField "siteName" siteRow.SiteName
-             >> setField "grain" staticSheetData.Grain
-             >> setField "sheetDate" staticSheetData.PdfDate
-             >> setField "sheetData" staticSheetData)
+        event Debug "Read {seasonCount} seasons for Site {siteName} from Price Sheet {grain}:{sheetDate}"
+        |> setField "seasonCount" relevantPriceCount
+        |> setField "siteName" siteRow.SiteName
+        |> setField "grain" staticSheetData.Grain
+        |> setField "sheetDate" staticSheetData.PdfDate
+        |> setField "sheetData" staticSheetData
+        |> pdfParserLogger.logSimple
 
         let nonIdPrice =
             { id = ""
@@ -227,9 +229,9 @@ module PdfParser =
 
         let pdfDate, pdfArrAfterDate = extractDateFromGCBarley pdfArr
 
-        pdfParserLogger.info
-            (eventX "Parsing Barley Prices for sheet on {pdfDate}"
-             >> setField "pdfDate" pdfDate)
+        event Info "Parsing Barley Prices for sheet on {pdfDate}"
+        |> setField "pdfDate" pdfDate
+        |> pdfParserLogger.logSimple
 
         let pdfSeasons, pdfArrAfterSeasons =
             extractSeasonsFromGCBarley pdfArrAfterDate
@@ -256,11 +258,11 @@ module PdfParser =
                 priceList
                 @ [ (extractBarleySitePricesFromSiteRow row pdfSeasons staticSheetData) ]
 
-        pdfParserLogger.info
-            (eventX "Read Barley Prices for {siteCount} sites from sheet {pdfDate}"
-             >> setField "pdfDate" pdfDate
-             >> setField "siteCount" priceList.Length
-             >> setField "sheetData" staticSheetData)
+        event Info "Read Barley Prices for {siteCount} sites from sheet {pdfDate}"
+        |> setField "pdfDate" pdfDate
+        |> setField "siteCount" priceList.Length
+        |> setField "sheetData" staticSheetData
+        |> pdfParserLogger.logSimple
 
         priceList
 

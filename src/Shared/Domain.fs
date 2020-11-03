@@ -96,3 +96,5 @@ module Domain =
             + price.Grain.ToString()
             + price.Buyer.ToString()
             + price.Pool.ToString()
+
+    type RecordId = { id: string }

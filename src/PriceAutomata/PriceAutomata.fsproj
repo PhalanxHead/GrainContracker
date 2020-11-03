@@ -14,6 +14,8 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Compile Include="PdfHelper.fs" />
+    <Compile Include="StorageHelper.fs" />
+    <Compile Include="PriceSheetDownloader.fs" />
     <Compile Include="HttpTrigger.fs" />
   </ItemGroup>
   <ItemGroup>

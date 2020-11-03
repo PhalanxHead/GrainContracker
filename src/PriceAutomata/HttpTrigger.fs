@@ -2,49 +2,53 @@ namespace Company.Function
 
 open FSharp.CosmosDb
 open FSharp.Control
+open Logary
+open Logary.Message
+open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Mvc
 open Microsoft.Azure.WebJobs
 open Microsoft.Azure.WebJobs.Extensions.Http
-open Microsoft.AspNetCore.Http
 open Microsoft.Extensions.Logging
-open Logary
-open Logary.Message
+open System.Net
+open System
+open System.IO
 
 module HttpTrigger =
     open GrainContracker.Common
     open Shared.Domain
-
-    type RecordId = { id: string }
-
-    [<Literal>]
-    let Database_Name = "Contracker_primary"
-
-    [<Literal>]
-    let Container_Name = "Prices"
-
-    [<Literal>]
-    let EnvVariable_ConnStringsPrefix = "ConnectionStrings"
-
-    [<Literal>]
-    let EnvVariable_CosmosDbConnString = "CosmosDbConnectionString"
+    open Shared.Configuration.Constants
 
     let cosmosConnString =
         System.Environment.GetEnvironmentVariable
-            (EnvVariable_ConnStringsPrefix
-             + ":"
-             + EnvVariable_CosmosDbConnString)
+            (sprintf "%s:%s" EnvVariable_ConnStringsPrefix EnvVariable_CosmosDbConnString)
 
     let GCBarleyLogger =
         Shared.Configuration.Logging.getLogger "GrainContracker.PriceAutomata" "PriceAutomata.GraincorpBarley"
 
+    let GeneratePricesheetNameFromPrice (price: DayPrice) =
+        (sprintf
+            "%s_%s_%s.pdf"
+             (price.Pool.ToString())
+             (price.Grain.ToString())
+             (price.PriceSheetDate.ToString("yyyy-MMM-dd")))
+
     [<FunctionName("HttpTrigger")>]
     let run ([<HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)>] req: HttpRequest) (log: ILogger) =
         async {
+
             log.LogInformation("F# HTTP trigger function processed a request.")
-            let pdfString = PdfHelper.readSamplePdfPig
+
+            let! pdfBytes = PriceSheetDownloader.DownloadPricesheetBytes Barley VIC
+
+            use pdfStream = new MemoryStream(pdfBytes)
+
+            let pdfString =
+                PdfHelper.readPdfToStringPdfPig pdfStream
 
             let prices =
                 PdfParser.GrainCorpBarleyParser pdfString
+
+            do! StorageHelper.UploadStreamToBlob pdfStream (GeneratePricesheetNameFromPrice prices.[0])
 
             let priceIdsString = prices |> List.map (fun p -> p.id)
 
@@ -52,18 +56,18 @@ module HttpTrigger =
 
             op.Serializer <- Shared.Serializer.CompactCosmosSerializer()
 
-            GCBarleyLogger.debug
-                (eventX "Connection String: {connstring}"
-                 >> setField "connstring" cosmosConnString)
+            event Debug "Connection String: {connstring}"
+            |> setField "connstring" cosmosConnString
+            |> GCBarleyLogger.logSimple
 
-            GCBarleyLogger.info
-                (eventX "Found {priceCount} prices to write to the CosmosDB"
-                 >> setField "priceCount" prices.Length
-                 >> setField "connstring" cosmosConnString)
+            event Info "Found {priceCount} prices to write to the CosmosDB"
+            |> setField "priceCount" prices.Length
+            |> setField "connstring" cosmosConnString
+            |> GCBarleyLogger.logSimple
 
-            GCBarleyLogger.debug
-                (eventX "New Price IDs: {priceIds}"
-                 >> setField "priceIds" priceIdsString)
+            event Debug "New Price IDs: {priceIds}"
+            |> setField "priceIds" priceIdsString
+            |> GCBarleyLogger.logSimple
 
             let cosmosConnection =
                 Cosmos.fromConnectionStringWithOptions cosmosConnString op
@@ -78,10 +82,10 @@ module HttpTrigger =
 
             let! existingPIDS = getExistingSitePrices |> AsyncSeq.toListAsync
 
-            GCBarleyLogger.info
-                (eventX "Found {priceCount} of these prices already in the CosmosDB!"
-                 >> setField "priceCount" existingPIDS.Length
-                 >> setField "connstring" cosmosConnString)
+            event Info "Found {priceCount} of these prices already in the CosmosDB!"
+            |> setField "priceCount" existingPIDS.Length
+            |> setField "connstring" cosmosConnString
+            |> GCBarleyLogger.logSimple
 
             let cleanprices =
                 prices
@@ -97,10 +101,10 @@ module HttpTrigger =
             do! insertSitePrices
                 |> AsyncSeq.iter (fun _ -> count <- count + 1)
 
-            GCBarleyLogger.info
-                (eventX "Wrote {priceCount} new prices to the CosmosDB"
-                 >> setField "priceCount" count
-                 >> setField "connstring" cosmosConnString)
+            event Info "Wrote {priceCount} new prices to the CosmosDB"
+            |> setField "priceCount" count
+            |> setField "connstring" cosmosConnString
+            |> GCBarleyLogger.logSimple
 
             return OkObjectResult(prices) :> IActionResult
         }

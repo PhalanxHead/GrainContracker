@@ -6,7 +6,7 @@ open Logary.Message
 open Logary.Configuration
 open Logary.Targets
 
-module Configuration = 
+module Configuration =
     module Logging =
 
         let getLogger (hostName: string) (loggerName: string) =
@@ -19,3 +19,22 @@ module Configuration =
                 |> run
 
             logary.getLogger loggerName
+
+    module Constants =
+        [<Literal>]
+        let Database_Name = "Contracker_primary"
+
+        [<Literal>]
+        let Container_Name = "Prices"
+
+        [<Literal>]
+        let BlobPriceSheetContainerName = "pricesheets"
+
+        [<Literal>]
+        let EnvVariable_ConnStringsPrefix = "ConnectionStrings"
+
+        [<Literal>]
+        let EnvVariable_CosmosDbConnString = "CosmosDbConnectionString"
+
+        [<Literal>]
+        let EnvVariable_AzStorageConnString = "AzureStorage"
