@@ -1,25 +1,23 @@
-namespace Company.Function
+namespace Graincontracker.PriceAutomata
 
+open Microsoft.Azure
+open Microsoft.Azure.WebJobs
+open Microsoft.Extensions.Logging
 open FSharp.CosmosDb
 open FSharp.Control
 open Logary
 open Logary.Message
-open Microsoft.AspNetCore.Http
-open Microsoft.AspNetCore.Mvc
-open Microsoft.Azure
-open Microsoft.Azure.WebJobs
-open Microsoft.Azure.WebJobs.Extensions.Http
-open Microsoft.Extensions.Logging
-open System.Net
-open System
-open Microsoft.Extensions.Configuration
 open System.IO
+open Microsoft.Extensions.Configuration
 
-module HttpTrigger =
+module GraincorpVicBarleyTrigger =
     open GrainContracker.Common
     open Shared.Domain
     open Shared.Configuration.Constants
 
+    // let private cosmosConnString =
+    // System.Environment.GetEnvironmentVariable
+    // (sprintf "%s:%s" EnvVariable_ConnStringsPrefix EnvVariable_CosmosDbConnString)
 
     let private gCBarleyLogger =
         Shared.Configuration.Logging.getLogger "GrainContracker.PriceAutomata" "PriceAutomata.GraincorpBarley"
@@ -31,11 +29,14 @@ module HttpTrigger =
              (price.Grain.ToString())
              (price.PriceSheetDate.ToString("yyyy-MMM-dd")))
 
-    [<FunctionName("HttpTrigger")>]
-    let run ([<HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)>] req: HttpRequest)
-            (log: ILogger)
-            (context: ExecutionContext)
-            =
+    [<Literal>]
+    let private FinalTimerString = "0 * 2,7,22 * * *"
+
+    [<Literal>]
+    let private TestingTimerString = "0 0/1 * * * *"
+
+    [<FunctionName("GraincorpVicBarleyTimerTrigger")>]
+    let run ([<TimerTrigger(FinalTimerString)>] myTimer: TimerInfo, log: ILogger) (context: ExecutionContext) =
         let config =
             ConfigurationBuilder().SetBasePath(context.FunctionAppDirectory)
                 .AddJsonFile("local.settings.json", true, true).AddEnvironmentVariables().Build()
@@ -50,7 +51,9 @@ module HttpTrigger =
 
         async {
 
-            log.LogInformation("F# HTTP trigger function processed a request.")
+            event Info "Starting Vic Barley Download at {time}"
+            |> setField "time" System.DateTime.Now
+            |> gCBarleyLogger.logSimple
 
             let! pdfBytes = PriceSheetDownloader.DownloadPricesheetBytes Barley VIC
 
@@ -123,6 +126,5 @@ module HttpTrigger =
             |> setField "connstring" cosmosConnString
             |> gCBarleyLogger.logSimple
 
-            return OkObjectResult(prices) :> IActionResult
         }
         |> Async.StartAsTask

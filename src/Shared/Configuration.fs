@@ -12,7 +12,8 @@ module Configuration =
         let getLogger (hostName: string) (loggerName: string) =
             let logary =
                 Config.create hostName "Azure Funcs"
-                |> Config.target (LiterateConsole.create LiterateConsole.empty "console")
+                |> Config.target (LiterateConsole.create LiterateConsole.empty "litconsole")
+                |> Config.target (Console.create Console.empty "console")
                 |> Config.loggerMinLevel ".*" LogLevel.Debug
                 |> Config.ilogger (ILogger.Console Debug)
                 |> Config.build

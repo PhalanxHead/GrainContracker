@@ -17,7 +17,7 @@ module Array =
 module PdfHelper =
     open UglyToad.PdfPig
 
-    let pdfHelperLogger =
+    let private pdfHelperLogger =
         Logging.getLogger "GrainContracker.PriceAutomata" "PriceAutomata.PdfHelper"
 
     let readPdfToStringPdfPig (pdfPath: IO.Stream) =
@@ -27,10 +27,9 @@ module PdfHelper =
             for word in page.GetWords() do
                 pdfString <- pdfString + " " + word.Text
 
-        pdfHelperLogger.info
-            (eventX "Read {chars} characters from Pdf {pdfPath}"
-             >> setField "chars" pdfString.Length
-             >> setField "pdfPath" pdfPath)
+        event Debug "Read {chars} characters from Pdf"
+        |> setField "chars" pdfString.Length
+        |> pdfHelperLogger.logSimple
 
         pdfString
 
@@ -43,23 +42,23 @@ module PdfParser =
     open Shared.Units
 
     [<Literal>]
-    let DateIndex = 8
+    let private DateIndex = 8
 
     [<Literal>]
-    let DateLen = 3
+    let private DateLen = 3
 
-    type SiteRow =
+    type private SiteRow =
         { SiteName: string
           SitePrices: string [] }
 
-    type SheetData =
+    type private SheetData =
         { PdfDate: DateTimeOffset
           PdfPool: SalesPool
           SaleType: PriceType
           Grain: GrainType
           Buyer: Buyers }
 
-    let pdfParserLogger =
+    let private pdfParserLogger =
         Logging.getLogger "GrainContracker.PriceAutomata" "PriceAutomata.PdfParser"
 
     /// <summary>
@@ -71,7 +70,7 @@ module PdfParser =
     /// <returns>
     /// The date of the price sheet, tupled with the pdf string array that begins after the date
     /// </returns>
-    let extractDateFromGCBarley (pdfArr: string []) =
+    let private extractDateFromGCBarley (pdfArr: string []) =
         let remainingArr =
             pdfArr |> Array.skip (DateIndex + DateLen)
 
@@ -92,7 +91,7 @@ module PdfParser =
     /// <returns>
     /// The array of seasons for this price sheet, tupled with the pdf string array starting after the seasons row.
     /// </returns>
-    let extractSeasonsFromGCBarley (pdfArrAfterDate: string []) =
+    let private extractSeasonsFromGCBarley (pdfArrAfterDate: string []) =
         let arrBeforeSeasons =
             (pdfArrAfterDate
              |> Array.skipWhile (String.contains '/' >> not))
@@ -120,7 +119,7 @@ module PdfParser =
     /// The Site Row (Site name + prices in a string array without $ signs)
     /// and the remaining PDF string after the last price in the row.
     /// </returns>
-    let extractSitePriceRowFromGCBarley (pdfArrAfterGrades: string []) =
+    let private extractSitePriceRowFromGCBarley (pdfArrAfterGrades: string []) =
         let siteName =
             (pdfArrAfterGrades
              |> Array.takeWhile (String.contains '$' >> not))
@@ -148,7 +147,7 @@ module PdfParser =
     /// <param name="seasons">The list of seasons present on this site sheet</param>
     /// <param name="staticSheetData">The obejct containing all the ambiant sheet data like date and pool</param>
     /// <returns>List of Site Prices for the primary grain grade</returns>
-    let extractBarleySitePricesFromSiteRow (siteRow: SiteRow) (seasons: Season []) (staticSheetData: SheetData) =
+    let private extractBarleySitePricesFromSiteRow (siteRow: SiteRow) (seasons: Season []) (staticSheetData: SheetData) =
         let relevantPriceCount =
             min siteRow.SitePrices.Length seasons.Length
 
@@ -210,7 +209,7 @@ module PdfParser =
     /// <param name="remainingDepth">The number of rows left to extract</param>
     /// <param name="pdfArray">The remaining PDF Array</param>
     /// <returns>An array of the Site Rows in the given PDF array</returns>
-    let rec extractNextSiteRow (rowAccum: SiteRow []) (remainingDepth: int) (pdfArray: string []) =
+    let rec private extractNextSiteRow (rowAccum: SiteRow []) (remainingDepth: int) (pdfArray: string []) =
         if remainingDepth < 0 then
             rowAccum
         else
@@ -265,52 +264,3 @@ module PdfParser =
         |> pdfParserLogger.logSimple
 
         priceList
-
-
-(*
-module PdfSharpHelper =
-    open PdfSharp.Pdf.IO
-    open PdfSharp.Pdf.Content
-    open PdfSharp.Pdf.Content.Objects
-
-    let rec extractText (content: CObject, sb: StringBuilder) =
-        match content with
-        | :? CArray as xs ->
-            for x in xs do
-                extractText (x, sb)
-        | :? CComment -> ()
-        | :? CInteger -> ()
-        | :? CName -> ()
-        | :? CNumber -> ()
-        // Tj/TJ = Show text
-        | :? COperator as op when op.OpCode.OpCodeName = OpCodeName.Tj
-                                  || op.OpCode.OpCodeName = OpCodeName.TJ ->
-            for element in op.Operands do
-                extractText (element, sb)
-
-            sb.Append(" ") |> ignore
-
-        | :? COperator -> ()
-        | :? CSequence as xs ->
-            for x in xs do
-                extractText (x, sb)
-        | :? CString as s -> sb.Append(s.Value) |> ignore
-        | x ->
-            raise
-            <| System.NotImplementedException(x.ToString())
-
-    let readAllText (pdfPath: string) =
-        use document =
-            PdfReader.Open(pdfPath, PdfDocumentOpenMode.ReadOnly)
-
-        let result = StringBuilder()
-        for page in document.Pages do
-            let content = ContentReader.ReadContent(page)
-            extractText (content, result)
-            result.AppendLine() |> ignore
-        result.ToString()
-
-    let readSamplePdfSharp =
-        readAllText @"../../../../../../VIC-Barley_Oct13.pdf"
-
-*)

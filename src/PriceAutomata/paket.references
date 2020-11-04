@@ -5,3 +5,4 @@ Microsoft.FSharpLu
 Microsoft.FSharpLu.Json
 Logary
 WindowsAzure.Storage
+Logary.Targets.AppInsights
