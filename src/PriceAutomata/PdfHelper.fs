@@ -2,9 +2,6 @@ namespace GrainContracker.Common
 
 open System
 open Shared.Domain
-open Shared.Configuration
-open Logary
-open Logary.Message
 
 module String =
     let contains x = String.exists ((=) x)
@@ -17,8 +14,7 @@ module Array =
 module PdfHelper =
     open UglyToad.PdfPig
 
-    let private pdfHelperLogger =
-        Logging.getLogger "GrainContracker.PriceAutomata" "PriceAutomata.PdfHelper"
+    let log = NLog.FSharp.Logger("PdfHelper")
 
     let readPdfToStringPdfPig (pdfPath: IO.Stream) =
         let mutable pdfString = ""
@@ -27,9 +23,7 @@ module PdfHelper =
             for word in page.GetWords() do
                 pdfString <- pdfString + " " + word.Text
 
-        event Debug "Read {chars} characters from Pdf"
-        |> setField "chars" pdfString.Length
-        |> pdfHelperLogger.logSimple
+        log.Debug "Read %i chars from PDF" pdfString.Length
 
         pdfString
 
@@ -58,8 +52,7 @@ module PdfParser =
           Grain: GrainType
           Buyer: Buyers }
 
-    let private pdfParserLogger =
-        Logging.getLogger "GrainContracker.PriceAutomata" "PriceAutomata.PdfParser"
+    let log = NLog.FSharp.Logger("PdfParser")
 
     /// <summary>
     /// Works out the date from the beginning of the PDF String,
@@ -154,10 +147,7 @@ module PdfParser =
         let relevantPrices =
             match relevantPriceCount with
             | 0 ->
-                pdfParserLogger.error
-                    (eventX "Row {rowSite} has no prices!"
-                     >> setField "rowSite" siteRow.SiteName
-                     >> setField "sheetData" staticSheetData)
+                log.Error "Row %A has no Prices!" siteRow.SiteName
                 nullArg "There's no prices in this row!"
             | 1 -> [| siteRow.SitePrices.[0] |]
             | 2 ->
@@ -180,13 +170,12 @@ module PdfParser =
                       Price = priceAsCurrency } ])
         |> ignore
 
-        event Debug "Read {seasonCount} seasons for Site {siteName} from Price Sheet {grain}:{sheetDate}"
-        |> setField "seasonCount" relevantPriceCount
-        |> setField "siteName" siteRow.SiteName
-        |> setField "grain" staticSheetData.Grain
-        |> setField "sheetDate" staticSheetData.PdfDate
-        |> setField "sheetData" staticSheetData
-        |> pdfParserLogger.logSimple
+        log.Debug
+            "Read %i seasons for Site \"%s\" from Price Sheet \"%A\":%A"
+            relevantPriceCount
+            siteRow.SiteName
+            staticSheetData.Grain
+            (staticSheetData.PdfDate.ToString("yyyy-MMM-dd"))
 
         let nonIdPrice =
             { id = ""
@@ -228,9 +217,10 @@ module PdfParser =
 
         let pdfDate, pdfArrAfterDate = extractDateFromGCBarley pdfArr
 
-        event Info "Parsing Barley Prices for sheet on {pdfDate}"
-        |> setField "pdfDate" pdfDate
-        |> pdfParserLogger.logSimple
+        use b =
+            NLog.NestedDiagnosticsLogicalContext.Push(pdfDate.ToString("yyyy-MMM-dd"))
+
+        log.Info "Parsing Barley Prices for sheet on %A" (pdfDate.ToString("yyyy-MMM-dd"))
 
         let pdfSeasons, pdfArrAfterSeasons =
             extractSeasonsFromGCBarley pdfArrAfterDate
@@ -257,10 +247,6 @@ module PdfParser =
                 priceList
                 @ [ (extractBarleySitePricesFromSiteRow row pdfSeasons staticSheetData) ]
 
-        event Info "Read Barley Prices for {siteCount} sites from sheet {pdfDate}"
-        |> setField "pdfDate" pdfDate
-        |> setField "siteCount" priceList.Length
-        |> setField "sheetData" staticSheetData
-        |> pdfParserLogger.logSimple
+        log.Info "Read Barley Prices for %i sites from sheet \"%A\"" priceList.Length (pdfDate.ToString("yyyy-MMM-dd"))
 
         priceList

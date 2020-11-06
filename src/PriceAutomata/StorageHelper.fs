@@ -1,20 +1,13 @@
 namespace GrainContracker.Common
 
 open Shared.Configuration.Constants
-open Logary
-open Logary.Message
 
 module StorageHelper =
     open Microsoft.WindowsAzure.Storage
     open Microsoft.WindowsAzure.Storage.Blob
     open System.IO
 
-    // let private storageConnString =
-    // System.Environment.GetEnvironmentVariable
-    // (sprintf "%s:%s" EnvVariable_ConnStringsPrefix EnvVariable_AzStorageConnString)
-
-    let private blobUploadLogger =
-        Shared.Configuration.Logging.getLogger "GrainContracker.PriceAutomata" "PriceAutomata.StorageHelper"
+    let log = NLog.FSharp.Logger()
 
     let UploadStreamToBlob (stream: Stream) (blobName: string) storageConnString =
         async {
@@ -23,10 +16,7 @@ module StorageHelper =
             let cloudStorageAcc =
                 CloudStorageAccount.Parse(storageConnString)
 
-            event Debug "Uploading {byteCount} bytes to Storage Account at {cloudStorage}"
-            |> setField "byteCount" stream.Length
-            |> setField "cloudStorage" cloudStorageAcc.BlobEndpoint.OriginalString
-            |> blobUploadLogger.logSimple
+            log.Debug "Uploading PDF to Storage Account at %s" cloudStorageAcc.BlobEndpoint.OriginalString
 
             stream.Position <- int64 (0)
 
@@ -52,10 +42,10 @@ module StorageHelper =
             do! blockBlob.UploadFromStreamAsync(stream)
                 |> Async.AwaitTask
 
-            event Debug "Uploaded {byteCount} bytes to File {fileName} in Storage Account at {cloudStorage}"
-            |> setField "byteCount" blockBlob.StreamMinimumReadSizeInBytes
-            |> setField "cloudStorage" cloudStorageAcc.BlobEndpoint
-            |> setField "fileName" blockBlob.Name
-            |> blobUploadLogger.logSimple
+            log.Debug
+                "Uploaded %i bytes to File %s in Storage Account at %s"
+                blockBlob.StreamMinimumReadSizeInBytes
+                blockBlob.Name
+                cloudStorageAcc.BlobEndpoint.OriginalString
 
         }

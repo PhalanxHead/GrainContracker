@@ -3,6 +3,7 @@ FSharp.CosmosDb
 Azure.Cosmos
 Microsoft.FSharpLu
 Microsoft.FSharpLu.Json
-Logary
 WindowsAzure.Storage
-Logary.Targets.AppInsights
+NLog
+NLog.Extensions.Logging
+NLog.FSharp

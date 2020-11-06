@@ -2,8 +2,8 @@ namespace Company.Function
 
 open FSharp.CosmosDb
 open FSharp.Control
-open Logary
-open Logary.Message
+//open Logary
+//open Logary.Message
 open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Mvc
 open Microsoft.Azure
@@ -21,8 +21,8 @@ module HttpTrigger =
     open Shared.Configuration.Constants
 
 
-    let private gCBarleyLogger =
-        Shared.Configuration.Logging.getLogger "GrainContracker.PriceAutomata" "PriceAutomata.GraincorpBarley"
+    // let private gCBarleyLogger =
+    // Shared.Configuration.Logging.getLogger "GrainContracker.PriceAutomata" "PriceAutomata.GraincorpBarley"
 
     let private generatePricesheetNameFromPrice (price: DayPrice) =
         (sprintf
@@ -73,18 +73,18 @@ module HttpTrigger =
 
             op.Serializer <- Shared.Serializer.CompactCosmosSerializer()
 
-            event Debug "Connection String: {connstring}"
-            |> setField "connstring" cosmosConnString
-            |> gCBarleyLogger.logSimple
+            //event Debug "Connection String: {connstring}"
+            //|> setField "connstring" cosmosConnString
+            //|> gCBarleyLogger.logSimple
 
-            event Info "Found {priceCount} prices to write to the CosmosDB"
-            |> setField "priceCount" prices.Length
-            |> setField "connstring" cosmosConnString
-            |> gCBarleyLogger.logSimple
+            //event Info "Found {priceCount} prices to write to the CosmosDB"
+            //|> setField "priceCount" prices.Length
+            //|> setField "connstring" cosmosConnString
+            //|> gCBarleyLogger.logSimple
 
-            event Debug "New Price IDs: {priceIds}"
-            |> setField "priceIds" priceIdsString
-            |> gCBarleyLogger.logSimple
+            //event Debug "New Price IDs: {priceIds}"
+            //|> setField "priceIds" priceIdsString
+            //|> gCBarleyLogger.logSimple
 
             let cosmosConnection =
                 Cosmos.fromConnectionStringWithOptions cosmosConnString op
@@ -99,10 +99,10 @@ module HttpTrigger =
 
             let! existingPIDS = getExistingSitePrices |> AsyncSeq.toListAsync
 
-            event Info "Found {priceCount} of these prices already in the CosmosDB!"
-            |> setField "priceCount" existingPIDS.Length
-            |> setField "connstring" cosmosConnString
-            |> gCBarleyLogger.logSimple
+            // event Info "Found {priceCount} of these prices already in the CosmosDB!"
+            // |> setField "priceCount" existingPIDS.Length
+            // |> setField "connstring" cosmosConnString
+            // |> gCBarleyLogger.logSimple
 
             let cleanprices =
                 prices
@@ -118,10 +118,10 @@ module HttpTrigger =
             do! insertSitePrices
                 |> AsyncSeq.iter (fun _ -> count <- count + 1)
 
-            event Info "Wrote {priceCount} new prices to the CosmosDB"
-            |> setField "priceCount" count
-            |> setField "connstring" cosmosConnString
-            |> gCBarleyLogger.logSimple
+            // event Info "Wrote {priceCount} new prices to the CosmosDB"
+            // |> setField "priceCount" count
+            // |> setField "connstring" cosmosConnString
+            // |> gCBarleyLogger.logSimple
 
             return OkObjectResult(prices) :> IActionResult
         }
