@@ -29,12 +29,24 @@ module GraincorpVicBarleyTrigger =
     let private TestingTimerString = "0 0/1 * * * *"
 
     [<FunctionName("GraincorpVicBarleyTimerTrigger")>]
-    let run ([<TimerTrigger(FinalTimerString)>] graincorpVicBarleyTimer: TimerInfo) (context: ExecutionContext) =
+    let run ([<TimerTrigger(FinalTimerString)>] graincorpVicBarleyTimer: TimerInfo)
+            (azureILogger: Microsoft.Extensions.Logging.ILogger)
+            (context: ExecutionContext)
+            =
         let config =
             ConfigurationBuilder().SetBasePath(context.FunctionAppDirectory)
                 .AddJsonFile("local.settings.json", true, true).AddEnvironmentVariables().Build()
 
-        NLog.LogManager.Configuration <- NLogLoggingConfiguration(config.GetSection("NLog"))
+        let loggerTarget =
+            new NLog.Extensions.Logging.MicrosoftILoggerTarget(azureILogger)
+
+        loggerTarget.Layout <-
+            Layouts.Layout.FromString
+                ("${longdate}|${event-properties:item=EventId_Id:whenEmpty=0}|${uppercase:${level}}| ${logger} | ${message} ${exception:format=tostring} | ${ndlc:topFrames=3}")
+
+        let nlogConfig = NLog.Config.LoggingConfiguration()
+        nlogConfig.AddRuleForAllLevels(loggerTarget, "*")
+        NLog.LogManager.Configuration <- nlogConfig
 
         let log = NLog.FSharp.Logger("GrainCorpLogger")
 
