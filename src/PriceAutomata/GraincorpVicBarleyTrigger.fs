@@ -2,25 +2,18 @@ namespace Graincontracker.PriceAutomata
 
 open Microsoft.Azure
 open Microsoft.Azure.WebJobs
-open Microsoft.Extensions.Logging
 open FSharp.CosmosDb
 open FSharp.Control
-open Logary
-open Logary.Message
 open System.IO
 open Microsoft.Extensions.Configuration
+open NLog
+open NLog.FSharp
+open NLog.Extensions.Logging
 
 module GraincorpVicBarleyTrigger =
     open GrainContracker.Common
     open Shared.Domain
     open Shared.Configuration.Constants
-
-    // let private cosmosConnString =
-    // System.Environment.GetEnvironmentVariable
-    // (sprintf "%s:%s" EnvVariable_ConnStringsPrefix EnvVariable_CosmosDbConnString)
-
-    let private gCBarleyLogger =
-        Shared.Configuration.Logging.getLogger "GrainContracker.PriceAutomata" "PriceAutomata.GraincorpBarley"
 
     let private generatePricesheetNameFromPrice (price: DayPrice) =
         (sprintf
@@ -30,30 +23,45 @@ module GraincorpVicBarleyTrigger =
              (price.PriceSheetDate.ToString("yyyy-MMM-dd")))
 
     [<Literal>]
-    let private FinalTimerString = "0 * 2,7,22 * * *"
+    let private FinalTimerString = "0 30 2,7,22 * * *"
 
     [<Literal>]
     let private TestingTimerString = "0 0/1 * * * *"
 
     [<FunctionName("GraincorpVicBarleyTimerTrigger")>]
-    let run ([<TimerTrigger(FinalTimerString)>] myTimer: TimerInfo, log: ILogger) (context: ExecutionContext) =
+    let run ([<TimerTrigger(FinalTimerString)>] graincorpVicBarleyTimer: TimerInfo)
+            (azureILogger: Microsoft.Extensions.Logging.ILogger)
+            (context: ExecutionContext)
+            =
         let config =
             ConfigurationBuilder().SetBasePath(context.FunctionAppDirectory)
                 .AddJsonFile("local.settings.json", true, true).AddEnvironmentVariables().Build()
 
+        let loggerTarget =
+            new NLog.Extensions.Logging.MicrosoftILoggerTarget(azureILogger)
+
+        loggerTarget.Layout <-
+            Layouts.Layout.FromString
+                ("${longdate}|${event-properties:item=EventId_Id:whenEmpty=0}|${uppercase:${level}}| ${logger} | ${message} ${exception:format=tostring} | ${ndlc:topFrames=3}")
+
+        let nlogConfig = NLog.Config.LoggingConfiguration()
+        nlogConfig.AddRuleForAllLevels(loggerTarget, "*")
+        NLog.LogManager.Configuration <- nlogConfig
+
+        let log = NLog.FSharp.Logger("GrainCorpLogger")
+
         let cosmosConnString =
             config.GetConnectionString EnvVariable_CosmosDbConnString
-        // System.Environment.GetEnvironmentVariable
-        //(sprintf "%s:%s" EnvVariable_ConnStringsPrefix EnvVariable_CosmosDbConnString)
 
         let storageConnString =
             config.GetConnectionString EnvVariable_AzStorageConnString
 
         async {
 
-            event Info "Starting Vic Barley Download at {time}"
-            |> setField "time" System.DateTime.Now
-            |> gCBarleyLogger.logSimple
+            log.Info "Starting Vic Barley Download at %s" (System.DateTime.Now.ToString())
+
+            use a =
+                NestedDiagnosticsLogicalContext.Push("GC_VIC_Barley")
 
             let! pdfBytes = PriceSheetDownloader.DownloadPricesheetBytes Barley VIC
 
@@ -64,6 +72,10 @@ module GraincorpVicBarleyTrigger =
 
             let prices =
                 PdfParser.GrainCorpBarleyParser pdfString
+
+            use b =
+                NestedDiagnosticsLogicalContext.Push
+                    (sprintf "PdfDate_%s" (prices.[0].PriceSheetDate.ToString("yyyy-MMM-dd")))
 
             do! StorageHelper.UploadStreamToBlob
                     pdfStream
@@ -76,18 +88,11 @@ module GraincorpVicBarleyTrigger =
 
             op.Serializer <- Shared.Serializer.CompactCosmosSerializer()
 
-            event Debug "Connection String: {connstring}"
-            |> setField "connstring" cosmosConnString
-            |> gCBarleyLogger.logSimple
+            log.Debug "Connection String: %s" cosmosConnString
 
-            event Info "Found {priceCount} prices to write to the CosmosDB"
-            |> setField "priceCount" prices.Length
-            |> setField "connstring" cosmosConnString
-            |> gCBarleyLogger.logSimple
+            log.Info "Found %i prices to write to the CosmosDB" prices.Length
 
-            event Debug "New Price IDs: {priceIds}"
-            |> setField "priceIds" priceIdsString
-            |> gCBarleyLogger.logSimple
+            log.Debug "Top 10 new Price IDs: %A" (List.take 10 priceIdsString)
 
             let cosmosConnection =
                 Cosmos.fromConnectionStringWithOptions cosmosConnString op
@@ -102,10 +107,7 @@ module GraincorpVicBarleyTrigger =
 
             let! existingPIDS = getExistingSitePrices |> AsyncSeq.toListAsync
 
-            event Info "Found {priceCount} of these prices already in the CosmosDB!"
-            |> setField "priceCount" existingPIDS.Length
-            |> setField "connstring" cosmosConnString
-            |> gCBarleyLogger.logSimple
+            log.Info "Found %i of these prices already in CosmosDB!" (existingPIDS.Length)
 
             let cleanprices =
                 prices
@@ -121,10 +123,7 @@ module GraincorpVicBarleyTrigger =
             do! insertSitePrices
                 |> AsyncSeq.iter (fun _ -> count <- count + 1)
 
-            event Info "Wrote {priceCount} new prices to the CosmosDB"
-            |> setField "priceCount" count
-            |> setField "connstring" cosmosConnString
-            |> gCBarleyLogger.logSimple
+            log.Info "Wrote %i new prices to the CosmosDB" count
 
         }
         |> Async.StartAsTask

@@ -2,18 +2,20 @@ namespace Company.Function
 
 open FSharp.CosmosDb
 open FSharp.Control
-open Logary
-open Logary.Message
+//open Logary
+//open Logary.Message
 open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Mvc
 open Microsoft.Azure
 open Microsoft.Azure.WebJobs
 open Microsoft.Azure.WebJobs.Extensions.Http
-open Microsoft.Extensions.Logging
 open System.Net
 open System
 open Microsoft.Extensions.Configuration
 open System.IO
+open NLog
+open NLog.FSharp
+open NLog.Extensions.Logging
 
 module HttpTrigger =
     open GrainContracker.Common
@@ -21,8 +23,8 @@ module HttpTrigger =
     open Shared.Configuration.Constants
 
 
-    let private gCBarleyLogger =
-        Shared.Configuration.Logging.getLogger "GrainContracker.PriceAutomata" "PriceAutomata.GraincorpBarley"
+    // let private gCBarleyLogger =
+    // Shared.Configuration.Logging.getLogger "GrainContracker.PriceAutomata" "PriceAutomata.GraincorpBarley"
 
     let private generatePricesheetNameFromPrice (price: DayPrice) =
         (sprintf
@@ -33,26 +35,42 @@ module HttpTrigger =
 
     [<FunctionName("HttpTrigger")>]
     let run ([<HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)>] req: HttpRequest)
-            (log: ILogger)
+            (azureILogger: Microsoft.Extensions.Logging.ILogger)
             (context: ExecutionContext)
             =
         let config =
             ConfigurationBuilder().SetBasePath(context.FunctionAppDirectory)
                 .AddJsonFile("local.settings.json", true, true).AddEnvironmentVariables().Build()
 
+        let loggerTarget =
+            new NLog.Extensions.Logging.MicrosoftILoggerTarget(azureILogger)
+
+        loggerTarget.Layout <-
+            Layouts.Layout.FromString
+                ("${longdate}|${event-properties:item=EventId_Id:whenEmpty=0}|${uppercase:${level}}| ${logger} | ${message} ${exception:format=tostring} | ${ndlc:topFrames=3}")
+
+        let nlogConfig = NLog.Config.LoggingConfiguration()
+        nlogConfig.AddRuleForAllLevels(loggerTarget, "*")
+
+        NLog.LogManager.Configuration <- nlogConfig
+
+        let log =
+            NLog.FSharp.Logger("GrainCorpHTTPLogger")
+
         let cosmosConnString =
             config.GetConnectionString EnvVariable_CosmosDbConnString
-        // System.Environment.GetEnvironmentVariable
-        //(sprintf "%s:%s" EnvVariable_ConnStringsPrefix EnvVariable_CosmosDbConnString)
 
         let storageConnString =
             config.GetConnectionString EnvVariable_AzStorageConnString
 
         async {
 
-            log.LogInformation("F# HTTP trigger function processed a request.")
+            log.Info "F# HTTP trigger function processed a request."
 
             let! pdfBytes = PriceSheetDownloader.DownloadPricesheetBytes Barley VIC
+
+            use a =
+                NestedDiagnosticsLogicalContext.Push("GC_VIC_Barley_HTTP")
 
             use pdfStream = new MemoryStream(pdfBytes)
 
@@ -61,6 +79,10 @@ module HttpTrigger =
 
             let prices =
                 PdfParser.GrainCorpBarleyParser pdfString
+
+            use b =
+                NestedDiagnosticsLogicalContext.Push
+                    (sprintf "PdfDate_%s" (prices.[0].PriceSheetDate.ToString("yyyy-MMM-dd")))
 
             do! StorageHelper.UploadStreamToBlob
                     pdfStream
@@ -73,18 +95,11 @@ module HttpTrigger =
 
             op.Serializer <- Shared.Serializer.CompactCosmosSerializer()
 
-            event Debug "Connection String: {connstring}"
-            |> setField "connstring" cosmosConnString
-            |> gCBarleyLogger.logSimple
+            log.Debug "Connection String: %s" cosmosConnString
 
-            event Info "Found {priceCount} prices to write to the CosmosDB"
-            |> setField "priceCount" prices.Length
-            |> setField "connstring" cosmosConnString
-            |> gCBarleyLogger.logSimple
+            log.Info "Found %i prices to write to the CosmosDB" prices.Length
 
-            event Debug "New Price IDs: {priceIds}"
-            |> setField "priceIds" priceIdsString
-            |> gCBarleyLogger.logSimple
+            log.Debug "Top 10 new Price IDs: %A" (List.take 10 priceIdsString)
 
             let cosmosConnection =
                 Cosmos.fromConnectionStringWithOptions cosmosConnString op
@@ -99,10 +114,7 @@ module HttpTrigger =
 
             let! existingPIDS = getExistingSitePrices |> AsyncSeq.toListAsync
 
-            event Info "Found {priceCount} of these prices already in the CosmosDB!"
-            |> setField "priceCount" existingPIDS.Length
-            |> setField "connstring" cosmosConnString
-            |> gCBarleyLogger.logSimple
+            log.Info "Found %i of these prices already in CosmosDB!" (existingPIDS.Length)
 
             let cleanprices =
                 prices
@@ -118,10 +130,7 @@ module HttpTrigger =
             do! insertSitePrices
                 |> AsyncSeq.iter (fun _ -> count <- count + 1)
 
-            event Info "Wrote {priceCount} new prices to the CosmosDB"
-            |> setField "priceCount" count
-            |> setField "connstring" cosmosConnString
-            |> gCBarleyLogger.logSimple
+            log.Info "Wrote %i new prices to the CosmosDB" count
 
             return OkObjectResult(prices) :> IActionResult
         }
