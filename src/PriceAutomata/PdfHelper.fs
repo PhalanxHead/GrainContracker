@@ -250,3 +250,24 @@ module PdfParser =
         log.Info "Read Barley Prices for %i sites from sheet %A" priceList.Length (pdfDate.ToString("yyyy-MMM-dd"))
 
         priceList
+
+    let GrainCorpWheatParser (pdf: string) =
+        let pdfArr =
+            pdf.Split([| ' ' |], StringSplitOptions.RemoveEmptyEntries)
+
+        let pdfDate, pdfArrAfterDate = extractDateFromGCBarley pdfArr
+
+        use b =
+            NLog.NestedDiagnosticsLogicalContext.Push(pdfDate.ToString("yyyy-MMM-dd"))
+
+        log.Warn "Wheat Parser not Implemented! Returning Default Wheat DayPrice"
+
+        [ { id = ""
+            PriceSheetDate = pdfDate
+            Pool = VIC
+            Buyer = GrainCorp
+            Grade = GrainType.DefaultGrade Wheat
+            Grain = Wheat
+            Site = Site "Test"
+            SaleType = Contract
+            Price = [] } ]
