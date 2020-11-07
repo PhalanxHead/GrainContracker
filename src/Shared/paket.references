@@ -1,3 +1,7 @@
 FSharp.CosmosDb
 Azure.Cosmos
 Microsoft.FSharpLu.Json
+NLog
+NLog.Extensions.Logging
+NLog.FSharp
+Microsoft.Extensions.Configuration

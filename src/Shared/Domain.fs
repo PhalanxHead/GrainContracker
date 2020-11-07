@@ -97,4 +97,12 @@ module Domain =
             + price.Buyer.ToString()
             + price.Pool.ToString()
 
+        static member GeneratePricesheetNameFromPrice(price: DayPrice) =
+            (sprintf
+                "%s_%s_%s.pdf"
+                 (price.Pool.ToString())
+                 (price.Grain.ToString())
+                 (price.PriceSheetDate.ToString("yyyy-MMM-dd")))
+
+
     type RecordId = { id: string }

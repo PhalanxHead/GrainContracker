@@ -14,6 +14,7 @@ module PriceSheetDownloader =
         let dlUri =
             match grain, pool with
             | Barley, VIC -> Uri("http://www.graincorp.com.au/daily-contract-prices/VIC-Barley.pdf")
+            | Wheat, VIC -> Uri("http://www.graincorp.com.au/daily-contract-prices/VIC-Wheat.pdf")
             | _ -> Uri("http://www.graincorp.com.au/daily-contract-prices/VIC-Barley.pdf")
 
         log.Debug "Downloading Pricesheet from %s" dlUri.AbsoluteUri

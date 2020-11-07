@@ -247,6 +247,6 @@ module PdfParser =
                 priceList
                 @ [ (extractBarleySitePricesFromSiteRow row pdfSeasons staticSheetData) ]
 
-        log.Info "Read Barley Prices for %i sites from sheet \"%A\"" priceList.Length (pdfDate.ToString("yyyy-MMM-dd"))
+        log.Info "Read Barley Prices for %i sites from sheet %A" priceList.Length (pdfDate.ToString("yyyy-MMM-dd"))
 
         priceList

@@ -17,6 +17,7 @@
     <Compile Include="StorageHelper.fs" />
     <Compile Include="PriceSheetDownloader.fs" />
     <Compile Include="GraincorpVicBarleyTrigger.fs" />
+    <Compile Include="GraincorpVicWheatTrigger.fs" />
     <Compile Include="HttpTrigger.fs" />
   </ItemGroup>
   <ItemGroup>

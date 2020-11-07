@@ -42,20 +42,8 @@ module HttpTrigger =
             ConfigurationBuilder().SetBasePath(context.FunctionAppDirectory)
                 .AddJsonFile("local.settings.json", true, true).AddEnvironmentVariables().Build()
 
-        let loggerTarget =
-            new NLog.Extensions.Logging.MicrosoftILoggerTarget(azureILogger)
-
-        loggerTarget.Layout <-
-            Layouts.Layout.FromString
-                ("${longdate}|${event-properties:item=EventId_Id:whenEmpty=0}|${uppercase:${level}}| ${logger} | ${message} ${exception:format=tostring} | ${ndlc:topFrames=3}")
-
-        let nlogConfig = NLog.Config.LoggingConfiguration()
-        nlogConfig.AddRuleForAllLevels(loggerTarget, "*")
-
-        NLog.LogManager.Configuration <- nlogConfig
-
         let log =
-            NLog.FSharp.Logger("GrainCorpHTTPLogger")
+            Shared.Configuration.Logging.getLogger azureILogger "GrainCorpHTTPLogger" (config.GetSection("NLog"))
 
         let cosmosConnString =
             config.GetConnectionString EnvVariable_CosmosDbConnString

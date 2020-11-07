@@ -7,26 +7,11 @@ open FSharp.Control
 open System.IO
 open Microsoft.Extensions.Configuration
 open NLog
-open NLog.FSharp
-open NLog.Extensions.Logging
 
 module GraincorpVicBarleyTrigger =
     open GrainContracker.Common
     open Shared.Domain
     open Shared.Configuration.Constants
-
-    let private generatePricesheetNameFromPrice (price: DayPrice) =
-        (sprintf
-            "%s_%s_%s.pdf"
-             (price.Pool.ToString())
-             (price.Grain.ToString())
-             (price.PriceSheetDate.ToString("yyyy-MMM-dd")))
-
-    [<Literal>]
-    let private FinalTimerString = "0 30 2,7,22 * * *"
-
-    [<Literal>]
-    let private TestingTimerString = "0 0/1 * * * *"
 
     [<FunctionName("GraincorpVicBarleyTimerTrigger")>]
     let run ([<TimerTrigger(FinalTimerString)>] graincorpVicBarleyTimer: TimerInfo)
@@ -37,18 +22,8 @@ module GraincorpVicBarleyTrigger =
             ConfigurationBuilder().SetBasePath(context.FunctionAppDirectory)
                 .AddJsonFile("local.settings.json", true, true).AddEnvironmentVariables().Build()
 
-        let loggerTarget =
-            new NLog.Extensions.Logging.MicrosoftILoggerTarget(azureILogger)
-
-        loggerTarget.Layout <-
-            Layouts.Layout.FromString
-                ("${longdate}|${event-properties:item=EventId_Id:whenEmpty=0}|${uppercase:${level}}| ${logger} | ${message} ${exception:format=tostring} | ${ndlc:topFrames=3}")
-
-        let nlogConfig = NLog.Config.LoggingConfiguration()
-        nlogConfig.AddRuleForAllLevels(loggerTarget, "*")
-        NLog.LogManager.Configuration <- nlogConfig
-
-        let log = NLog.FSharp.Logger("GrainCorpLogger")
+        let log =
+            Shared.Configuration.Logging.getLogger azureILogger "GrainCorpLogger" (config.GetSection("NLog"))
 
         let cosmosConnString =
             config.GetConnectionString EnvVariable_CosmosDbConnString
@@ -75,11 +50,11 @@ module GraincorpVicBarleyTrigger =
 
             use b =
                 NestedDiagnosticsLogicalContext.Push
-                    (sprintf "PdfDate_%s" (prices.[0].PriceSheetDate.ToString("yyyy-MMM-dd")))
+                    (sprintf "PdfDate_%s" (prices.Head.PriceSheetDate.ToString("yyyy-MMM-dd")))
 
             do! StorageHelper.UploadStreamToBlob
                     pdfStream
-                    (generatePricesheetNameFromPrice prices.[0])
+                    (DayPrice.GeneratePricesheetNameFromPrice prices.Head)
                     storageConnString
 
             let priceIdsString = prices |> List.map (fun p -> p.id)
