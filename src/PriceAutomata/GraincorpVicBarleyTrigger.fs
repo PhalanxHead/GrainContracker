@@ -23,7 +23,7 @@ module GraincorpVicBarleyTrigger =
              (price.PriceSheetDate.ToString("yyyy-MMM-dd")))
 
     [<Literal>]
-    let private FinalTimerString = "0 * 2,7,22 * * *"
+    let private FinalTimerString = "0 30 2,7,22 * * *"
 
     [<Literal>]
     let private TestingTimerString = "0 0/1 * * * *"
