@@ -14,13 +14,17 @@ module GraincorpVicBarleyTrigger =
     open Shared.Configuration.Constants
 
     [<FunctionName("GraincorpVicBarleyTimerTrigger")>]
-    let run ([<TimerTrigger(FinalTimerString)>] graincorpVicBarleyTimer: TimerInfo)
-            (azureILogger: Microsoft.Extensions.Logging.ILogger)
-            (context: ExecutionContext)
-            =
+    let run
+        ([<TimerTrigger(FinalTimerString)>] graincorpVicBarleyTimer: TimerInfo)
+        (azureILogger: Microsoft.Extensions.Logging.ILogger)
+        (context: ExecutionContext)
+        =
         let config =
-            ConfigurationBuilder().SetBasePath(context.FunctionAppDirectory)
-                .AddJsonFile("local.settings.json", true, true).AddEnvironmentVariables().Build()
+            ConfigurationBuilder()
+                .SetBasePath(context.FunctionAppDirectory)
+                .AddJsonFile("local.settings.json", true, true)
+                .AddEnvironmentVariables()
+                .Build()
 
         let log =
             Shared.Configuration.Logging.getLogger azureILogger "GrainCorpLogger" (config.GetSection("NLog"))
@@ -49,10 +53,12 @@ module GraincorpVicBarleyTrigger =
                 PdfParser.GrainCorpBarleyParser pdfString
 
             use b =
-                NestedDiagnosticsLogicalContext.Push
-                    (sprintf "PdfDate_%s" (prices.Head.PriceSheetDate.ToString("yyyy-MMM-dd")))
+                NestedDiagnosticsLogicalContext.Push(
+                    sprintf "PdfDate_%s" (prices.Head.PriceSheetDate.ToString("yyyy-MMM-dd"))
+                )
 
-            do! StorageHelper.UploadStreamToBlob
+            do!
+                StorageHelper.UploadStreamToBlob
                     pdfStream
                     (DayPrice.GeneratePricesheetNameFromPrice prices.Head)
                     storageConnString
@@ -74,28 +80,15 @@ module GraincorpVicBarleyTrigger =
                 |> Cosmos.database Database_Name
                 |> Cosmos.container Container_Name
 
-            let getExistingSitePrices =
-                cosmosConnection
-                |> Cosmos.query "SELECT c.id FROM c WHERE ARRAY_CONTAINS (@newIds, c.id)"
-                |> Cosmos.parameters [ "@newIds", box priceIdsString ]
-                |> Cosmos.execAsync<RecordId>
-
-            let! existingPIDS = getExistingSitePrices |> AsyncSeq.toListAsync
-
-            log.Info "Found %i of these prices already in CosmosDB!" (existingPIDS.Length)
-
-            let cleanprices =
-                prices
-                |> List.filter (fun p -> existingPIDS |> List.contains { id = p.id } |> not)
-
             let insertSitePrices =
                 cosmosConnection
-                |> Cosmos.insertMany<DayPrice> cleanprices
+                |> Cosmos.upsertMany<DayPrice> prices
                 |> Cosmos.execAsync
 
             let mutable count = 0
 
-            do! insertSitePrices
+            do!
+                insertSitePrices
                 |> AsyncSeq.iter (fun _ -> count <- count + 1)
 
             log.Info "Wrote %i new prices to the CosmosDB" count

@@ -3,11 +3,13 @@ framework: netcoreapp3.1
 storage: none
 
 nuget Azure.Cosmos
+nuget Fable.Fetch 2.2.0
 nuget Fable.Remoting.Giraffe
-nuget FSharp.CosmosDb
+nuget FSharp.CosmosDb 0.3.0
 nuget FSharp.SystemTextJson
 nuget Microsoft.FSharpLu
 nuget Microsoft.FSharpLu.Json
+nuget Microsoft.Extensions.Configuration
 nuget NLog
 nuget NLog.Extensions.Logging
 nuget NLog.FSharp
@@ -26,6 +28,7 @@ nuget Fable.Mocha
 nuget Fable.React
 nuget Fable.Remoting.Client
 nuget Fulma
+nuget Thoth.Fetch
 nuget WindowsAzure.Storage
 
 group Build
