@@ -29,18 +29,22 @@ module HttpTrigger =
     let private generatePricesheetNameFromPrice (price: DayPrice) =
         (sprintf
             "%s_%s_%s.pdf"
-             (price.Pool.ToString())
-             (price.Grain.ToString())
-             (price.PriceSheetDate.ToString("yyyy-MMM-dd")))
+            (price.Pool.ToString())
+            (price.Grain.ToString())
+            (price.PriceSheetDate.ToString("yyyy-MMM-dd")))
 
     [<FunctionName("HttpTrigger")>]
-    let run ([<HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)>] req: HttpRequest)
-            (azureILogger: Microsoft.Extensions.Logging.ILogger)
-            (context: ExecutionContext)
-            =
+    let run
+        ([<HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)>] req: HttpRequest)
+        (azureILogger: Microsoft.Extensions.Logging.ILogger)
+        (context: ExecutionContext)
+        =
         let config =
-            ConfigurationBuilder().SetBasePath(context.FunctionAppDirectory)
-                .AddJsonFile("local.settings.json", true, true).AddEnvironmentVariables().Build()
+            ConfigurationBuilder()
+                .SetBasePath(context.FunctionAppDirectory)
+                .AddJsonFile("local.settings.json", true, true)
+                .AddEnvironmentVariables()
+                .Build()
 
         let log =
             Shared.Configuration.Logging.getLogger azureILogger "GrainCorpHTTPLogger" (config.GetSection("NLog"))
@@ -69,10 +73,12 @@ module HttpTrigger =
                 PdfParser.GrainCorpBarleyParser pdfString
 
             use b =
-                NestedDiagnosticsLogicalContext.Push
-                    (sprintf "PdfDate_%s" (prices.[0].PriceSheetDate.ToString("yyyy-MMM-dd")))
+                NestedDiagnosticsLogicalContext.Push(
+                    sprintf "PdfDate_%s" (prices.[0].PriceSheetDate.ToString("yyyy-MMM-dd"))
+                )
 
-            do! StorageHelper.UploadStreamToBlob
+            do!
+                StorageHelper.UploadStreamToBlob
                     pdfStream
                     (generatePricesheetNameFromPrice prices.[0])
                     storageConnString
@@ -94,28 +100,15 @@ module HttpTrigger =
                 |> Cosmos.database Database_Name
                 |> Cosmos.container Container_Name
 
-            let getExistingSitePrices =
+            let upsertSitePrices =
                 cosmosConnection
-                |> Cosmos.query "SELECT c.id FROM c WHERE ARRAY_CONTAINS (@newIds, c.id)"
-                |> Cosmos.parameters [ "@newIds", box priceIdsString ]
-                |> Cosmos.execAsync<RecordId>
-
-            let! existingPIDS = getExistingSitePrices |> AsyncSeq.toListAsync
-
-            log.Info "Found %i of these prices already in CosmosDB!" (existingPIDS.Length)
-
-            let cleanprices =
-                prices
-                |> List.filter (fun p -> existingPIDS |> List.contains { id = p.id } |> not)
-
-            let insertSitePrices =
-                cosmosConnection
-                |> Cosmos.insertMany<DayPrice> cleanprices
+                |> Cosmos.upsertMany<DayPrice> prices
                 |> Cosmos.execAsync
 
             let mutable count = 0
 
-            do! insertSitePrices
+            do!
+                upsertSitePrices
                 |> AsyncSeq.iter (fun _ -> count <- count + 1)
 
             log.Info "Wrote %i new prices to the CosmosDB" count

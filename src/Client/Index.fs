@@ -2,6 +2,7 @@ module Index
 
 open Elmish
 open Fable.Remoting.Client
+open Thoth.Fetch
 open Shared
 
 type Model = { Todos: Todo list; Input: string }
@@ -45,11 +46,22 @@ open Fable.React
 open Fable.React.Props
 open Fulma
 
+let pickBackground =
+    let rnd = System.Random()
+
+    let backgrounds =
+        [| "/Backgrounds/a.jpg"
+           "/Backgrounds/b.jpg"
+           "/Backgrounds/c.jpg"
+           "/Backgrounds/d.jpg"
+           "/Backgrounds/e.png" |]
+
+    backgrounds.[rnd.Next(backgrounds.Length)]
+
 let navBrand =
     Navbar.Brand.div [] [
-        Navbar.Item.a [ Navbar.Item.Props [ Href "https://safe-stack.github.io/" ]
-                        Navbar.Item.IsActive true ] [
-            img [ Src "/favicon.png"; Alt "Logo" ]
+        Navbar.Item.a [ Navbar.Item.IsActive true ] [
+            str "Hello John"
         ]
     ]
 
@@ -81,11 +93,39 @@ let view (model: Model) (dispatch: Msg -> unit) =
     Hero.hero [ Hero.Color IsPrimary
                 Hero.IsFullHeight
                 Hero.Props [ Style [ Background
-                                         """linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url("https://unsplash.it/1200/900?random") no-repeat center center fixed"""
+                                         (sprintf
+                                             """linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url("%s") no-repeat center center fixed"""
+                                              pickBackground)
                                      BackgroundSize "cover" ] ] ] [
         Hero.head [] [
+            (*
             Navbar.navbar [] [
                 Container.container [] [ navBrand ]
+            ]
+            *)
+            Navbar.navbar [ Navbar.Color IsInfo ] [
+                Navbar.Brand.div [] [
+                    Navbar.Item.a [ Navbar.Item.Props [ Href "#" ] ] [
+                        img [ Src "/favicon.png" ]
+                    ]
+                ]
+                Navbar.Item.a [ Navbar.Item.HasDropdown
+                                Navbar.Item.IsHoverable ] [
+                    Navbar.Link.a [] [ str "Docs" ]
+                    Navbar.Dropdown.div [] [
+                        Navbar.Item.a [] [ str "Overwiew" ]
+                        Navbar.Item.a [] [ str "Elements" ]
+                        Navbar.divider [] []
+                        Navbar.Item.a [] [ str "Components" ]
+                    ]
+                ]
+                Navbar.End.div [] [
+                    Navbar.Item.div [] [
+                        Button.button [ Button.Color IsSuccess ] [
+                            str "Demo"
+                        ]
+                    ]
+                ]
             ]
         ]
 
