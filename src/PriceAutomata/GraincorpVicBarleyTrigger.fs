@@ -80,9 +80,23 @@ module GraincorpVicBarleyTrigger =
                 |> Cosmos.database Database_Name
                 |> Cosmos.container Container_Name
 
+            let getExistingSitePrices =
+                cosmosConnection
+                |> Cosmos.query "SELECT c.id FROM c WHERE ARRAY_CONTAINS (@newIds, c.id)"
+                |> Cosmos.parameters [ "@newIds", box priceIdsString ]
+                |> Cosmos.execAsync<RecordId>
+
+            let! existingPIDS = getExistingSitePrices |> AsyncSeq.toListAsync
+
+            log.Info "Found %i of these prices already in CosmosDB! They won't be updated." (existingPIDS.Length)
+
+            let cleanprices =
+                prices
+                |> List.filter (fun p -> existingPIDS |> List.contains { id = p.id } |> not)
+
             let insertSitePrices =
                 cosmosConnection
-                |> Cosmos.upsertMany<DayPrice> prices
+                |> Cosmos.insertMany<DayPrice> cleanprices
                 |> Cosmos.execAsync
 
             let mutable count = 0
