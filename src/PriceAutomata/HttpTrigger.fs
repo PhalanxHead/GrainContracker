@@ -100,15 +100,29 @@ module HttpTrigger =
                 |> Cosmos.database Database_Name
                 |> Cosmos.container Container_Name
 
-            let upsertSitePrices =
+            let getExistingSitePrices =
                 cosmosConnection
-                |> Cosmos.upsertMany<DayPrice> prices
+                |> Cosmos.query "SELECT c.id FROM c WHERE ARRAY_CONTAINS (@newIds, c.id)"
+                |> Cosmos.parameters [ "@newIds", box priceIdsString ]
+                |> Cosmos.execAsync<RecordId>
+
+            let! existingPIDS = getExistingSitePrices |> AsyncSeq.toListAsync
+
+            log.Info "Found %i of these prices already in CosmosDB! They won't be updated." (existingPIDS.Length)
+
+            let cleanprices =
+                prices
+                |> List.filter (fun p -> existingPIDS |> List.contains { id = p.id } |> not)
+
+            let insertSitePrices =
+                cosmosConnection
+                |> Cosmos.insertMany<DayPrice> cleanprices
                 |> Cosmos.execAsync
 
             let mutable count = 0
 
             do!
-                upsertSitePrices
+                insertSitePrices
                 |> AsyncSeq.iter (fun _ -> count <- count + 1)
 
             log.Info "Wrote %i new prices to the CosmosDB" count
