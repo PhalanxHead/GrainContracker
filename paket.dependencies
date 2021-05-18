@@ -3,6 +3,7 @@ framework: netcoreapp3.1
 storage: none
 
 nuget Azure.Cosmos
+nuget Fable.DateFunctions
 nuget Fable.Fetch 2.2.0
 nuget Fable.Remoting.Giraffe
 nuget FSharp.CosmosDb 0.3.0

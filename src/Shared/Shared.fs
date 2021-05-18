@@ -1,6 +1,7 @@
 namespace Shared
 
 open System
+open Domain
 
 type Todo = { Id: Guid; Description: string }
 
@@ -15,6 +16,7 @@ module Todo =
 module Route =
     let builder typeName methodName = sprintf "/api/%s/%s" typeName methodName
 
-type ITodosApi =
+type IGrainConTrackerApi =
     { getTodos: unit -> Async<Todo list>
-      addTodo: Todo -> Async<Todo> }
+      addTodo: Todo -> Async<Todo>
+      getDayPrices: unit -> Async<DayPrice list> }

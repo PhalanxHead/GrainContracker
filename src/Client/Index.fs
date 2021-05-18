@@ -4,8 +4,9 @@ open Elmish
 open Fable.Remoting.Client
 open Thoth.Fetch
 open Shared
+open Shared.SampleData
 
-type Model = { Todos: Todo list; Input: string }
+type Model = { Todos: Todo list; Input: string; DayPrices_All: Domain.DayPrice list }
 
 type Msg =
     | GotTodos of Todo list
@@ -16,10 +17,10 @@ type Msg =
 let todosApi =
     Remoting.createApi ()
     |> Remoting.withRouteBuilder Route.builder
-    |> Remoting.buildProxy<ITodosApi>
+    |> Remoting.buildProxy<IGrainConTrackerApi>
 
 let init (): Model * Cmd<Msg> =
-    let model = { Todos = []; Input = "" }
+    let model = { Todos = []; Input = ""; DayPrices_All = List.sortBy (fun x -> x.Site, x.PriceSheetDate) (SampleData.SampleDayPrices_All()) }
 
     let cmd =
         Cmd.OfAsync.perform todosApi.getTodos () GotTodos
@@ -65,14 +66,43 @@ let navBrand =
         ]
     ]
 
+open Fable.DateFunctions
+
 let containerBox (model: Model) (dispatch: Msg -> unit) =
     Box.box' [] [
+
         Content.content [] [
+            (*
             Content.Ol.ol [] [
                 for todo in model.Todos do
                     li [] [ str todo.Description ]
             ]
+            *)
+            div [Class "table-container"] [
+                let sheetDates = List.distinct (List.map (fun (x:Domain.DayPrice) -> x.PriceSheetDate) model.DayPrices_All)
+                Table.table [Table.IsStriped] [
+                    thead [] [
+                        tr [] [
+                            th [] [str "Site"]
+                            for sheetDate in sheetDates do
+                                th [] [str (sheetDate.Format("dd/MM/yy"))]
+                        ]
+                    ]
+                    tbody [] [
+                        for siteprice in List.groupBy (fun (x:Domain.DayPrice) -> x.Site) model.DayPrices_All do
+                            tr [] [
+                                match (fst siteprice) with
+                                | Domain.Site site -> td [] [str site]
+
+                                let sitePriceSheets = snd siteprice
+                                for date in sitePriceSheets do 
+                                    td [] [str (date.Price.Head.Price.ToString())]
+                            ]
+                    ]
+                ]
+            ]
         ]
+        (*
         Field.div [ Field.IsGrouped ] [
             Control.p [ Control.IsExpanded ] [
                 Input.text [ Input.Value model.Input
@@ -87,6 +117,7 @@ let containerBox (model: Model) (dispatch: Msg -> unit) =
                 ]
             ]
         ]
+        *)
     ]
 
 let view (model: Model) (dispatch: Msg -> unit) =

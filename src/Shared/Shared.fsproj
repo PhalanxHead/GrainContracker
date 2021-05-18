@@ -8,6 +8,7 @@
     <Compile Include="Domain.fs" />
     <Compile Include="Shared.fs" />
     <Compile Include="Configuration.fs" />
+    <Compile Include="SampleData.fs" />
   </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>
