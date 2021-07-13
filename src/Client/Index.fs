@@ -5,42 +5,37 @@ open Fable.Remoting.Client
 open Thoth.Fetch
 open Shared
 open Shared.SampleData
+open System
 
-type Model = { Todos: Todo list; Input: string; DayPrices_All: Domain.DayPrice list }
+type Model =
+    { LoadingDayPrices: bool
+      DayPrices_All: Domain.DayPrice list }
 
-type Msg =
-    | GotTodos of Todo list
-    | SetInput of string
-    | AddTodo
-    | AddedTodo of Todo
+
+type Msg = GotDayPrices of Domain.DayPrice list
 
 let todosApi =
     Remoting.createApi ()
     |> Remoting.withRouteBuilder Route.builder
     |> Remoting.buildProxy<IGrainConTrackerApi>
 
-let init (): Model * Cmd<Msg> =
-    let model = { Todos = []; Input = ""; DayPrices_All = List.sortBy (fun x -> x.Site, x.PriceSheetDate) (SampleData.SampleDayPrices_All()) }
+
+let init () : Model * Cmd<Msg> =
+    let model =
+        { LoadingDayPrices = true
+          DayPrices_All = [] }
 
     let cmd =
-        Cmd.OfAsync.perform todosApi.getTodos () GotTodos
+        Cmd.OfAsync.perform todosApi.getDayPrices () GotDayPrices
 
     model, cmd
 
-let update (msg: Msg) (model: Model): Model * Cmd<Msg> =
+let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     match msg with
-    | GotTodos todos -> { model with Todos = todos }, Cmd.none
-    | SetInput value -> { model with Input = value }, Cmd.none
-    | AddTodo ->
-        let todo = Todo.create model.Input
-
-        let cmd =
-            Cmd.OfAsync.perform todosApi.addTodo todo AddedTodo
-
-        { model with Input = "" }, cmd
-    | AddedTodo todo ->
+    | GotDayPrices dayPrices ->
         { model with
-              Todos = model.Todos @ [ todo ] },
+              DayPrices_All = dayPrices
+              LoadingDayPrices = false },
         Cmd.none
 
 open Fable.React
@@ -67,73 +62,95 @@ let navBrand =
     ]
 
 open Fable.DateFunctions
+open System.Linq
 
 let containerBox (model: Model) (dispatch: Msg -> unit) =
     Box.box' [] [
 
         Content.content [] [
-            (*
-            Content.Ol.ol [] [
-                for todo in model.Todos do
-                    li [] [ str todo.Description ]
-            ]
-            *)
-            div [Class "table-container"] [
-                let sheetDates = List.distinct (List.map (fun (x:Domain.DayPrice) -> x.PriceSheetDate) model.DayPrices_All)
-                Table.table [Table.IsStriped] [
-                    thead [] [
-                        tr [] [
-                            th [] [str "Site"]
-                            for sheetDate in sheetDates do
-                                th [] [str (sheetDate.Format("dd/MM/yy"))]
+            if model.LoadingDayPrices then
+                div [] [
+                    Heading.p [ Heading.Modifiers [ Modifier.TextAlignment(Screen.All, TextAlignment.Centered)
+                                                    Modifier.TextColor IsBlack
+                                                    Modifier.TextSize(Screen.All, TextSize.Is5) ] ] [
+                        str "Grain Prices Loading"
+                        Progress.progress [ Progress.Option.Size IsSmall
+                                            Progress.Option.Color IsPrimary ] []
+                    ]
+                ]
+            else
+                div [ Class "table-container" ] [
+                    let sheetDates =
+                        List.sortDescending (
+                            List.distinct (List.map (fun (x: Domain.DayPrice) -> x.PriceSheetDate) model.DayPrices_All)
+                        )
+
+                    let dateList = sheetDates
+
+                    Table.table [ Table.IsStriped ] [
+                        thead [] [
+                            tr [] [
+                                th [] [ str "Site" ]
+                                for sheetDate in dateList do
+                                    th [] [
+                                        str (sheetDate.Format("dd/MM/yy"))
+                                    ]
+                            ]
+                        ]
+                        tbody [] [
+                            for siteprice in List.groupBy (fun (x: Domain.DayPrice) -> x.Site) model.DayPrices_All do
+                                tr [] [
+                                    match (fst siteprice) with
+                                    | Domain.Site site -> td [] [ str site ]
+
+                                    let sitePriceSheets = snd siteprice
+
+                                    for date in dateList do
+                                        td [] [
+                                            let dayPriceForDate =
+                                                List.filter
+                                                    (fun (x: Domain.DayPrice) ->
+                                                        x.PriceSheetDate.DifferenceInDays(date) = 0)
+                                                    sitePriceSheets
+
+                                            if (dayPriceForDate.IsEmpty) then
+                                                Heading.p [ Heading.Modifiers [ Modifier.TextAlignment(
+                                                                                    Screen.All,
+                                                                                    TextAlignment.Centered
+                                                                                )
+                                                                                Modifier.TextColor IsBlack
+                                                                                Modifier.TextSize(
+                                                                                    Screen.All,
+                                                                                    TextSize.Is5
+                                                                                ) ] ] [
+                                                    str "-"
+                                                ]
+                                            else
+                                                    str (
+                                                        (List.filter
+                                                            (fun (x: Domain.DayPrice) ->
+                                                                x.PriceSheetDate.DifferenceInDays(date) < 1)
+                                                            sitePriceSheets)
+                                                            .Head.Price.Head.Price.ToString()
+                                                    )
+                                        ]
+                                ]
                         ]
                     ]
-                    tbody [] [
-                        for siteprice in List.groupBy (fun (x:Domain.DayPrice) -> x.Site) model.DayPrices_All do
-                            tr [] [
-                                match (fst siteprice) with
-                                | Domain.Site site -> td [] [str site]
-
-                                let sitePriceSheets = snd siteprice
-                                for date in sitePriceSheets do 
-                                    td [] [str (date.Price.Head.Price.ToString())]
-                            ]
-                    ]
                 ]
-            ]
         ]
-        (*
-        Field.div [ Field.IsGrouped ] [
-            Control.p [ Control.IsExpanded ] [
-                Input.text [ Input.Value model.Input
-                             Input.Placeholder "What needs to be done?"
-                             Input.OnChange(fun x -> SetInput x.Value |> dispatch) ]
-            ]
-            Control.p [] [
-                Button.a [ Button.Color IsPrimary
-                           Button.Disabled(Todo.isValid model.Input |> not)
-                           Button.OnClick(fun _ -> dispatch AddTodo) ] [
-                    str "Add"
-                ]
-            ]
-        ]
-        *)
     ]
 
 let view (model: Model) (dispatch: Msg -> unit) =
     Hero.hero [ Hero.Color IsPrimary
                 Hero.IsFullHeight
-                Hero.Props [ Style [ Background
-                                         (sprintf
+                Hero.Props [ Style [ Background(
+                                         sprintf
                                              """linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url("%s") no-repeat center center fixed"""
-                                              pickBackground)
+                                             pickBackground
+                                     )
                                      BackgroundSize "cover" ] ] ] [
         Hero.head [] [
-            (*
-            Navbar.navbar [] [
-                Container.container [] [ navBrand ]
-            ]
-            *)
             Navbar.navbar [ Navbar.Color IsInfo ] [
                 Navbar.Brand.div [] [
                     Navbar.Item.a [ Navbar.Item.Props [ Href "#" ] ] [
@@ -143,7 +160,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
                 Navbar.Item.a [ Navbar.Item.HasDropdown
                                 Navbar.Item.IsHoverable ] [
                     Navbar.Link.a [] [ str "Docs" ]
-                    Navbar.Dropdown.div [] [
+                    Navbar.Dropdown.div [ Navbar.Dropdown.Modifiers [ Modifier.TextColor IsBlack ] ] [
                         Navbar.Item.a [] [ str "Overwiew" ]
                         Navbar.Item.a [] [ str "Elements" ]
                         Navbar.divider [] []
@@ -164,7 +181,7 @@ let view (model: Model) (dispatch: Msg -> unit) =
             Container.container [] [
                 Column.column [ Column.Width(Screen.All, Column.Is6)
                                 Column.Offset(Screen.All, Column.Is3) ] [
-                    Heading.p [ Heading.Modifiers [ Modifier.TextAlignment(Screen.All, TextAlignment.Centered) ] ] [
+                    Heading.h2 [ Heading.Modifiers [ Modifier.TextAlignment(Screen.All, TextAlignment.Centered) ] ] [
                         str "GrainContracker"
                     ]
                     containerBox model dispatch

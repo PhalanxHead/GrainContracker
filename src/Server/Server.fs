@@ -7,44 +7,19 @@ open Saturn
 open Shared
 open Shared.SampleData
 
-type Storage() =
-    let todos = ResizeArray<_>()
-
-    member __.GetTodos() = List.ofSeq todos
-
-    member __.AddTodo(todo: Todo) =
-        if Todo.isValid todo.Description then
-            todos.Add todo
-            Ok()
-        else
-            Error "Invalid todo"
-
-
-let storage = Storage()
-
-storage.AddTodo(Todo.create "Create new SAFE project")
-|> ignore
-
-storage.AddTodo(Todo.create "Write your app")
-|> ignore
-
-storage.AddTodo(Todo.create "Ship it !!!")
-|> ignore
 
 open Shared.Domain
 open Shared.Units
 open System
+open System.Threading.Tasks
 
 let graincontrackerApi =
-    { getTodos = fun () -> async { return storage.GetTodos() }
-      addTodo =
-          fun todo ->
+    { getDayPrices =
+          fun () ->
               async {
-                  match storage.AddTodo todo with
-                  | Ok () -> return todo
-                  | Error e -> return failwith e
-              }
-      getDayPrices = fun () -> async { return [] } }
+                  let! t = Task.Delay(1000) |> Async.AwaitTask
+                  return List.sortByDescending (fun x -> x.PriceSheetDate) (SampleDayPrices_All())
+              } }
 
 
 let webApp =

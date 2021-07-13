@@ -24,11 +24,6 @@ module PriceSheetDownloader =
             use httpHandler = new HttpClientHandler()
             httpHandler.AutomaticDecompression <- DecompressionMethods.GZip ||| DecompressionMethods.None
             use httpClient = new HttpClient(httpHandler)
-            (*
-            use wc = new WebClient()
-
-            let! pdfBytes = wc.AsyncDownloadData(dlUri)
-            *)
 
             let! response = httpClient.GetAsync(dlUri) |> Async.AwaitTask
             response.EnsureSuccessStatusCode () |> ignore
