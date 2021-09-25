@@ -8,6 +8,7 @@ nuget Fable.Fetch 2.2.0
 nuget Fable.Remoting.Giraffe
 nuget FSharp.CosmosDb 0.3.0
 nuget FSharp.SystemTextJson
+nuget Fulma.Extensions.Wikiki.Checkradio
 nuget Microsoft.FSharpLu
 nuget Microsoft.FSharpLu.Json
 nuget Microsoft.Extensions.Configuration

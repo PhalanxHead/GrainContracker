@@ -13,5 +13,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Shared\Shared.fsproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Fulma.Extensions.Wikiki.Checkradio" Version="2.0.1" />
+  </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>

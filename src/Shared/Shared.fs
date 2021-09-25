@@ -8,5 +8,6 @@ module Route =
         sprintf "/api/%s/%s" typeName methodName
 
 type IGrainConTrackerApi =
-    { getDayPrices: unit -> Async<DayPrice list> }
-
+    { GetSiteList: unit -> Async<Site list>
+      GetDayPrices: unit -> Async<DayPrice list>
+      GetDayPricesBySite: Site list -> Async<DayPrice list> }
